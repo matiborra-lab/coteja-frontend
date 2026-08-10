@@ -493,6 +493,11 @@ export default function AdminUsuarios() {
     navigate('/');
   }
 
+  const usuariosFiltrados = (usuarios || []).filter((u) =>
+    u.email.toLowerCase().includes(busqueda.toLowerCase()) ||
+    u.marcas.some((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  );
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-900">Admin</h1>
@@ -552,81 +557,122 @@ export default function AdminUsuarios() {
             />
           )}
 
-          <div className="bg-white rounded-xl shadow overflow-x-auto">
-            {usuarios == null ? (
-              <p className="p-4 text-gray-400">Cargando...</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs font-semibold uppercase text-gray-400 border-b border-gray-100">
-                    <th className="p-3 font-semibold">Marca</th>
-                    <th className="p-3 font-semibold">Estado</th>
-                    <th className="p-3 font-semibold">Tipo</th>
-                    <th className="p-3 font-semibold">Mail</th>
-                    <th className="p-3 font-semibold">Último log</th>
-                    <th className="p-3 font-semibold">Rol</th>
-                    <th className="p-3 font-semibold"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {usuarios
-                    .filter((u) =>
-                      u.email.toLowerCase().includes(busqueda.toLowerCase()) ||
-                      u.marcas.some((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-                    )
-                    .map((u) => (
-                    <tr key={u.id}>
-                      <td className="p-3 align-top">
-                        {u.rol === 'ADMIN' ? (
-                          <span className="text-xs text-gray-400">—</span>
-                        ) : u.marcas.length === 0 ? (
-                          <span className="text-xs text-gray-400">Sin marcas todavía</span>
-                        ) : (
-                          <div className="space-y-1">
-                            {u.marcas.map((m) => (
-                              <button
-                                key={m.id}
-                                onClick={() => verPanel(m.id)}
-                                className="h-7 flex items-center text-xs bg-coteja-azul-50 text-coteja-azul-800 px-2 rounded-lg hover:bg-coteja-azul-100 whitespace-nowrap"
-                              >
-                                {m.nombre} →
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3 align-top">
-                        <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
+          {usuarios != null && (
+            <>
+                <div className="hidden md:block bg-white rounded-xl shadow overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs font-semibold uppercase text-gray-400 border-b border-gray-100">
+                        <th className="p-3 font-semibold">Marca</th>
+                        <th className="p-3 font-semibold">Estado</th>
+                        <th className="p-3 font-semibold">Tipo</th>
+                        <th className="p-3 font-semibold">Mail</th>
+                        <th className="p-3 font-semibold">Último log</th>
+                        <th className="p-3 font-semibold">Rol</th>
+                        <th className="p-3 font-semibold"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {usuariosFiltrados.map((u) => (
+                        <tr key={u.id}>
+                          <td className="p-3 align-top">
+                            {u.rol === 'ADMIN' ? (
+                              <span className="text-xs text-gray-400">—</span>
+                            ) : u.marcas.length === 0 ? (
+                              <span className="text-xs text-gray-400">Sin marcas todavía</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {u.marcas.map((m) => (
+                                  <button
+                                    key={m.id}
+                                    onClick={() => verPanel(m.id)}
+                                    className="h-7 flex items-center text-xs bg-coteja-azul-50 text-coteja-azul-800 px-2 rounded-lg hover:bg-coteja-azul-100 whitespace-nowrap"
+                                  >
+                                    {m.nombre} →
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 align-top">
+                            <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
+                              {u.activo ? 'Habilitado' : 'Deshabilitado'}
+                            </span>
+                          </td>
+                          <td className="p-3 align-top">
+                            {u.rol === 'ADMIN' || u.marcas.length === 0 ? (
+                              <span className="text-xs text-gray-400">—</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {u.marcas.map((m) => (
+                                  <p key={m.id} className="h-7 flex items-center text-xs text-gray-600 whitespace-nowrap">
+                                    {tipoComercioLabel(m.tipo_comercio)}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 align-top text-gray-900">{u.email}</td>
+                          <td className="p-3 align-top text-gray-500 text-xs whitespace-nowrap">{formatoFecha(u.ultimo_login)}</td>
+                          <td className="p-3 align-top text-gray-600 whitespace-nowrap">{rolLabel(u.rol)}</td>
+                          <td className="p-3 align-top">
+                            <button onClick={() => setUsuarioViendo(u)} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
+                              Ver
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="md:hidden space-y-3">
+                  {usuariosFiltrados.map((u) => (
+                    <div key={u.id} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-gray-900 break-all">{u.email}</p>
+                        <span className={'shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
                           {u.activo ? 'Habilitado' : 'Deshabilitado'}
                         </span>
-                      </td>
-                      <td className="p-3 align-top">
-                        {u.rol === 'ADMIN' || u.marcas.length === 0 ? (
-                          <span className="text-xs text-gray-400">—</span>
-                        ) : (
-                          <div className="space-y-1">
-                            {u.marcas.map((m) => (
-                              <p key={m.id} className="h-7 flex items-center text-xs text-gray-600 whitespace-nowrap">
-                                {tipoComercioLabel(m.tipo_comercio)}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3 align-top text-gray-900">{u.email}</td>
-                      <td className="p-3 align-top text-gray-500 text-xs whitespace-nowrap">{formatoFecha(u.ultimo_login)}</td>
-                      <td className="p-3 align-top text-gray-600 whitespace-nowrap">{rolLabel(u.rol)}</td>
-                      <td className="p-3 align-top">
-                        <button onClick={() => setUsuarioViendo(u)} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
-                          Ver
-                        </button>
-                      </td>
-                    </tr>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Rol</span>
+                        <span className="text-gray-700">{rolLabel(u.rol)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Último log</span>
+                        <span className="text-gray-700">{formatoFecha(u.ultimo_login)}</span>
+                      </div>
+                      {u.rol !== 'ADMIN' && (
+                        <div>
+                          <p className="text-gray-500 mb-1">Marca{u.marcas.length > 1 ? 's' : ''}</p>
+                          {u.marcas.length === 0 ? (
+                            <p className="text-xs text-gray-400">Sin marcas todavía</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {u.marcas.map((m) => (
+                                <button
+                                  key={m.id}
+                                  onClick={() => verPanel(m.id)}
+                                  className="w-full h-8 flex items-center justify-between text-xs bg-coteja-azul-50 text-coteja-azul-800 px-2 rounded-lg hover:bg-coteja-azul-100"
+                                >
+                                  <span>{m.nombre} · {tipoComercioLabel(m.tipo_comercio)}</span>
+                                  <span>→</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <button onClick={() => setUsuarioViendo(u)} className="text-xs text-coteja-azul-700 hover:underline">
+                        Ver
+                      </button>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                </div>
+            </>
+          )}
+          {usuarios == null && <p className="bg-white rounded-xl shadow p-4 text-gray-400">Cargando...</p>}
         </>
       )}
 

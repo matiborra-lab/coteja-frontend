@@ -123,7 +123,7 @@ function GraficoComparacionTiendas({ productos }) {
             <BarChart data={barras}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="nombre" tick={{ fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
-              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={70} />
+              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={56} />
               <Tooltip formatter={(v) => formatoMoneda(v)} />
               <Bar dataKey="precio" radius={[4, 4, 0, 0]}>
                 {barras.map((b, i) => (
@@ -199,7 +199,7 @@ function GraficoEvolucion({ productos, filtroCompetidores, marcaActualId }) {
             <LineChart data={puntosGrafico}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="fechaLabel" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={70} />
+              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={56} />
               <Tooltip formatter={(v) => formatoMoneda(v)} />
               <Legend />
               <Line type="monotone" dataKey="tu_precio" name="Tu precio" stroke={COLOR_MI_TIENDA} strokeWidth={2} connectNulls dot={{ r: 3 }} />
@@ -461,7 +461,7 @@ export default function Panel() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl shadow overflow-x-auto">
+          <div className="hidden md:block bg-white rounded-xl shadow overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead className="bg-gray-50 text-gray-500 text-left">
                 <tr>
@@ -515,6 +515,58 @@ export default function Panel() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="md:hidden space-y-3">
+            {productosFiltrados.length === 0 ? (
+              <p className="bg-white rounded-xl shadow p-4 text-center text-gray-400 text-sm">
+                Ningún artículo coincide con "{busqueda}".
+              </p>
+            ) : (
+              productosFiltrados.map((p) => (
+                <div key={p.id} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-900">{p.nombre}</p>
+                    <p className="text-xs text-gray-500">{p.categoria || 'Sin categoría'}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Tu precio</span>
+                    <span>{formatoMoneda(p.tu_precio)}</span>
+                  </div>
+                  {competidoresColumnas.map((col) => {
+                    const c = (p.competencia_por_competidor || []).find((c) => c.competidor_id === col.id);
+                    return (
+                      <div key={col.id} className="flex items-center justify-between">
+                        <span className="text-gray-500">{col.nombre}</span>
+                        <span>
+                          {c ? (
+                            <>
+                              {formatoMoneda(c.precio_final)}
+                              {c.en_promocion && (
+                                <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">promo</span>
+                              )}
+                              {c.con_incidencia && (
+                                <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">revisar</span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <span className="text-gray-500">Promedio competencia</span>
+                    <span className="font-bold">{formatoMoneda(p.promedio_competencia)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Diferencia</span>
+                    <Diferencia producto={p} />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <SeccionGraficos productos={productosFiltrados} filtroCompetidores={filtroCompetidores} marcaActualId={marcaActualId} />

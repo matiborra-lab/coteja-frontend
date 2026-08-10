@@ -646,69 +646,122 @@ export default function Alertas() {
       {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
-        {alertas == null ? (
-          <p className="p-4 text-gray-400">Cargando...</p>
-        ) : alertas.length === 0 ? (
-          <p className="p-4 text-gray-400">Todavía no creaste ninguna alerta.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-semibold uppercase text-gray-400 border-b border-gray-100">
-                <th className="p-3 font-semibold">Tipo</th>
-                <th className="p-3 font-semibold">Marca</th>
-                <th className="p-3 font-semibold">Observación</th>
-                <th className="p-3 font-semibold">Condición</th>
-                <th className="p-3 font-semibold">Frecuencia</th>
-                <th className="p-3 font-semibold">Próximo envío</th>
-                <th className="p-3 font-semibold">Estado</th>
-                <th className="p-3 font-semibold"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {alertas.map((a) => (
-                <tr key={a.id}>
-                  <td className="p-3 align-top text-gray-900">{tipoLabel(a.tipo)}</td>
-                  <td className="p-3 align-top text-gray-600 whitespace-nowrap">
-                    {a.marcas.length > 1 ? a.marcas.length + ' marcas' : (a.marcas[0]?.marca_nombre || '-')}
-                  </td>
-                  <td className="p-3 align-top text-gray-600">{a.observacion || <span className="text-gray-300">-</span>}</td>
-                  <td className="p-3 align-top text-gray-600">
+      {alertas == null ? (
+        <p className="bg-white rounded-xl shadow p-4 text-gray-400">Cargando...</p>
+      ) : alertas.length === 0 ? (
+        <p className="bg-white rounded-xl shadow p-4 text-gray-400">Todavía no creaste ninguna alerta.</p>
+      ) : (
+        <>
+          <div className="hidden md:block bg-white rounded-xl shadow overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase text-gray-400 border-b border-gray-100">
+                  <th className="p-3 font-semibold">Tipo</th>
+                  <th className="p-3 font-semibold">Marca</th>
+                  <th className="p-3 font-semibold">Observación</th>
+                  <th className="p-3 font-semibold">Condición</th>
+                  <th className="p-3 font-semibold">Frecuencia</th>
+                  <th className="p-3 font-semibold">Próximo envío</th>
+                  <th className="p-3 font-semibold">Estado</th>
+                  <th className="p-3 font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {alertas.map((a) => (
+                  <tr key={a.id}>
+                    <td className="p-3 align-top text-gray-900">{tipoLabel(a.tipo)}</td>
+                    <td className="p-3 align-top text-gray-600 whitespace-nowrap">
+                      {a.marcas.length > 1 ? a.marcas.length + ' marcas' : (a.marcas[0]?.marca_nombre || '-')}
+                    </td>
+                    <td className="p-3 align-top text-gray-600">{a.observacion || <span className="text-gray-300">-</span>}</td>
+                    <td className="p-3 align-top text-gray-600">
+                      {a.tipo === 'CAMBIOS_COMPETENCIA'
+                        ? condicionLabel(a.condicion) + (a.condicion === 'VARIACION_PORCENTAJE' ? ' ≥' + a.condicion_umbral_porcentaje + '%' : '')
+                        : '-'}
+                    </td>
+                    <td className="p-3 align-top text-gray-600 whitespace-nowrap">
+                      {a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO' ? 'Automática' : (a.frecuencia_programada || '-')}
+                    </td>
+                    <td className="p-3 align-top text-gray-600 whitespace-nowrap">{formatoFecha(a.proximo_envio)}</td>
+                    <td className="p-3 align-top">
+                      <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + ESTADO_BADGE[a.estado]} title={a.ultimo_error || ''}>
+                        {ESTADO_LABEL[a.estado]}
+                      </span>
+                      {a.estado === 'ERROR' && a.ultimo_error && (
+                        <p className="text-xs text-red-500 mt-0.5 max-w-[220px]">{a.ultimo_error}</p>
+                      )}
+                    </td>
+                    <td className="p-3 align-top">
+                      <div className="flex flex-col items-start gap-1">
+                        <button onClick={() => { setAlertaEditando(a); setMostrarForm(true); }} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
+                          Editar
+                        </button>
+                        <button onClick={() => duplicar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap disabled:opacity-50">
+                          Duplicar
+                        </button>
+                        <button onClick={() => pausarOReactivar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap disabled:opacity-50">
+                          {a.estado === 'PAUSADA' ? 'Reactivar' : 'Pausar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden space-y-3">
+            {alertas.map((a) => (
+              <div key={a.id} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-gray-900">{tipoLabel(a.tipo)}</p>
+                    <p className="text-xs text-gray-500">
+                      {a.marcas.length > 1 ? a.marcas.length + ' marcas' : (a.marcas[0]?.marca_nombre || '-')}
+                    </p>
+                  </div>
+                  <span className={'shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ' + ESTADO_BADGE[a.estado]} title={a.ultimo_error || ''}>
+                    {ESTADO_LABEL[a.estado]}
+                  </span>
+                </div>
+                {a.estado === 'ERROR' && a.ultimo_error && (
+                  <p className="text-xs text-red-500">{a.ultimo_error}</p>
+                )}
+                {a.observacion && <p className="text-gray-600">{a.observacion}</p>}
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Condición</span>
+                  <span className="text-gray-700">
                     {a.tipo === 'CAMBIOS_COMPETENCIA'
                       ? condicionLabel(a.condicion) + (a.condicion === 'VARIACION_PORCENTAJE' ? ' ≥' + a.condicion_umbral_porcentaje + '%' : '')
                       : '-'}
-                  </td>
-                  <td className="p-3 align-top text-gray-600 whitespace-nowrap">
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Frecuencia</span>
+                  <span className="text-gray-700">
                     {a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO' ? 'Automática' : (a.frecuencia_programada || '-')}
-                  </td>
-                  <td className="p-3 align-top text-gray-600 whitespace-nowrap">{formatoFecha(a.proximo_envio)}</td>
-                  <td className="p-3 align-top">
-                    <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + ESTADO_BADGE[a.estado]} title={a.ultimo_error || ''}>
-                      {ESTADO_LABEL[a.estado]}
-                    </span>
-                    {a.estado === 'ERROR' && a.ultimo_error && (
-                      <p className="text-xs text-red-500 mt-0.5 max-w-[220px]">{a.ultimo_error}</p>
-                    )}
-                  </td>
-                  <td className="p-3 align-top">
-                    <div className="flex flex-col items-start gap-1">
-                      <button onClick={() => { setAlertaEditando(a); setMostrarForm(true); }} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
-                        Editar
-                      </button>
-                      <button onClick={() => duplicar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap disabled:opacity-50">
-                        Duplicar
-                      </button>
-                      <button onClick={() => pausarOReactivar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap disabled:opacity-50">
-                        {a.estado === 'PAUSADA' ? 'Reactivar' : 'Pausar'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Próximo envío</span>
+                  <span className="text-gray-700">{formatoFecha(a.proximo_envio)}</span>
+                </div>
+                <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+                  <button onClick={() => { setAlertaEditando(a); setMostrarForm(true); }} className="text-xs text-coteja-azul-700 hover:underline">
+                    Editar
+                  </button>
+                  <button onClick={() => duplicar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline disabled:opacity-50">
+                    Duplicar
+                  </button>
+                  <button onClick={() => pausarOReactivar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline disabled:opacity-50">
+                    {a.estado === 'PAUSADA' ? 'Reactivar' : 'Pausar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {mostrarForm && (
         <Modal titulo={alertaEditando ? 'Editar alerta' : 'Nueva alerta'} onClose={cerrarForm} ancho="max-w-2xl">

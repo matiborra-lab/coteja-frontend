@@ -60,7 +60,7 @@ export function Modal({ titulo, onClose, children, ancho = 'max-w-lg' }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 overflow-y-auto z-50" onClick={onClose}>
       <div
-        className={'bg-white rounded-xl shadow-xl w-full ' + ancho + ' mt-12'}
+        className={'bg-white rounded-xl shadow-xl w-full ' + ancho + ' mt-4 md:mt-12'}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">

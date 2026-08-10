@@ -1,5 +1,7 @@
 # React + Vite
 
+> Rama `rediseno-visual`: trabajo del rediseño visual de COTEJA (misma base de datos y backend que producción, sin afectar `main`).
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

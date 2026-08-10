@@ -14,9 +14,8 @@ const PERIODOS = [
 ];
 
 // Paleta de marca (Manual de marca COTEJA, pag. 09): azul oscuro para la
-// serie propia, grises/azules neutros para competidores - el verde queda
-// reservado para un dato destacado puntual, no para "decorar" el grafico.
-const COLORES_LINEA = ['#64748b', '#0ea5e9', '#94a3b8', '#0369a1', '#475569', '#7dd3fc', '#334155'];
+// serie propia, gris para competidores, verde para el dato destacado
+// (el promedio de la competencia, tanto en la barra como en la linea).
 const COLOR_MI_TIENDA = '#011c3b';
 const COLOR_COMPETENCIA = '#9ca3af';
 const COLOR_PROMEDIO = '#02662e';
@@ -81,20 +80,13 @@ function NivelGeneral({ productos }) {
   );
 }
 
-function productosEnAlcance(productos, alcance) {
-  if (alcance.startsWith('cat:')) return productos.filter((p) => p.categoria === alcance.slice(4));
-  if (alcance.startsWith('art:')) return productos.filter((p) => String(p.id) === alcance.slice(4));
-  return productos;
-}
-
-function GraficoComparacionTiendas({ productos, alcance }) {
+function GraficoComparacionTiendas({ productos }) {
   const barras = useMemo(() => {
-    const scoped = productosEnAlcance(productos, alcance);
-    const tuPrecios = scoped.map((p) => p.tu_precio).filter((v) => v != null);
+    const tuPrecios = productos.map((p) => p.tu_precio).filter((v) => v != null);
     const tuPrecio = tuPrecios.length ? tuPrecios.reduce((a, b) => a + b, 0) / tuPrecios.length : null;
 
     const porTienda = new Map();
-    for (const p of scoped) {
+    for (const p of productos) {
       for (const c of p.competencia_por_competidor || []) {
         if (!porTienda.has(c.competidor_id)) porTienda.set(c.competidor_id, { nombre: c.competidor_nombre, precios: [] });
         porTienda.get(c.competidor_id).precios.push(c.precio_final);
@@ -116,7 +108,7 @@ function GraficoComparacionTiendas({ productos, alcance }) {
     competidores.sort((a, b) => a.precio - b.precio);
 
     return [{ nombre: 'Mi tienda', precio: tuPrecio, esPropia: true }, ...competidores];
-  }, [productos, alcance]);
+  }, [productos]);
 
   const hayDatos = barras.some((b) => b.precio != null);
 
@@ -146,66 +138,44 @@ function GraficoComparacionTiendas({ productos, alcance }) {
   );
 }
 
-function GraficoEvolucion({ alcance, marcaActualId }) {
-  const [comparar, setComparar] = useState('promedio');
-  const [tipoFiltro, setTipoFiltro] = useState('TODAS');
+function GraficoEvolucion({ productos, filtroCompetidores, marcaActualId }) {
   const [periodo, setPeriodo] = useState(30);
   const [datos, setDatos] = useState(null);
+  const idsProductos = productos.map((p) => p.id).join(',');
 
   useEffect(() => {
     const params = new URLSearchParams();
     const desde = new Date(Date.now() - periodo * 24 * 60 * 60 * 1000);
     params.set('desde', desde.toISOString());
-    if (alcance.startsWith('cat:')) params.set('categoria', alcance.slice(4));
-    if (alcance.startsWith('art:')) params.set('producto_propio_id', alcance.slice(4));
+    if (idsProductos) params.set('producto_propio_ids', idsProductos);
     api.get('/api/panel/' + marcaActualId + '/evolucion?' + params.toString()).then(setDatos);
-  }, [marcaActualId, alcance, periodo]);
+  }, [marcaActualId, idsProductos, periodo]);
 
-  const tiposDisponibles = useMemo(() => {
-    if (!datos) return [];
-    return [...new Set(datos.competidores.map((c) => c.tipo).filter(Boolean))];
-  }, [datos]);
-
+  // El mismo filtro de competencia del bloque de arriba decide que
+  // competidores entran en el promedio de este grafico - un solo filtro
+  // para toda la pantalla, no uno propio del grafico.
   const competidoresFiltrados = useMemo(() => {
     if (!datos) return [];
-    if (tipoFiltro === 'TODAS') return datos.competidores;
-    return datos.competidores.filter((c) => c.tipo === tipoFiltro);
-  }, [datos, tipoFiltro]);
+    if (filtroCompetidores.length === 0) return datos.competidores;
+    return datos.competidores.filter((c) => filtroCompetidores.includes(c.id));
+  }, [datos, filtroCompetidores]);
 
   const puntosGrafico = useMemo(() => {
     if (!datos) return [];
     return datos.puntos.map((punto) => {
-      const base = { fechaLabel: formatoFechaCorta(punto.fecha), tu_precio: punto.tu_precio };
-      if (comparar === 'promedio') {
-        const valores = competidoresFiltrados.map((c) => punto['c_' + c.id]).filter((v) => v != null);
-        base.promedio_competencia = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
-      } else {
-        for (const c of competidoresFiltrados) base['c_' + c.id] = punto['c_' + c.id] ?? null;
-      }
-      return base;
+      const valores = competidoresFiltrados.map((c) => punto['c_' + c.id]).filter((v) => v != null);
+      return {
+        fechaLabel: formatoFechaCorta(punto.fecha),
+        tu_precio: punto.tu_precio,
+        promedio_competencia: valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null,
+      };
     });
-  }, [datos, comparar, competidoresFiltrados]);
+  }, [datos, competidoresFiltrados]);
 
   return (
     <div className="bg-white rounded-xl shadow p-4 space-y-4">
       <h2 className="font-medium text-gray-900">Evolución de precios</h2>
       <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Comparar contra</label>
-          <select value={comparar} onChange={(e) => setComparar(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
-            <option value="promedio">Promedio de la competencia</option>
-            <option value="todas">Cada competencia por separado</option>
-          </select>
-        </div>
-        {tiposDisponibles.length > 0 && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de competencia</label>
-            <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
-              <option value="TODAS">Todas</option>
-              {tiposDisponibles.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        )}
         <div className="flex gap-1 ml-auto">
           {PERIODOS.map((p) => (
             <button
@@ -233,23 +203,7 @@ function GraficoEvolucion({ alcance, marcaActualId }) {
               <Tooltip formatter={(v) => formatoMoneda(v)} />
               <Legend />
               <Line type="monotone" dataKey="tu_precio" name="Tu precio" stroke={COLOR_MI_TIENDA} strokeWidth={2} connectNulls dot={{ r: 3 }} />
-              {comparar === 'promedio' ? (
-                <Line type="monotone" dataKey="promedio_competencia" name="Promedio competencia" stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={2} connectNulls dot={{ r: 3 }} />
-              ) : (
-                competidoresFiltrados.map((c, i) => (
-                  <Line
-                    key={c.id}
-                    type="monotone"
-                    dataKey={'c_' + c.id}
-                    name={c.nombre}
-                    stroke={COLORES_LINEA[i % COLORES_LINEA.length]}
-                    strokeDasharray="4 3"
-                    strokeWidth={2}
-                    connectNulls
-                    dot={{ r: 3 }}
-                  />
-                ))
-              )}
+              <Line type="monotone" dataKey="promedio_competencia" name="Promedio competencia" stroke={COLOR_PROMEDIO} strokeWidth={2} connectNulls dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -258,32 +212,11 @@ function GraficoEvolucion({ alcance, marcaActualId }) {
   );
 }
 
-function SeccionGraficos({ productos, marcaActualId }) {
-  const categorias = useMemo(
-    () => [...new Set(productos.map((p) => p.categoria).filter(Boolean))],
-    [productos]
-  );
-  const [alcance, setAlcance] = useState('general');
-
+function SeccionGraficos({ productos, filtroCompetidores, marcaActualId }) {
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow p-4">
-        <label className="block text-xs font-medium text-gray-500 mb-1">Ver</label>
-        <select value={alcance} onChange={(e) => setAlcance(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
-          <option value="general">Promedio general</option>
-          {categorias.length > 0 && (
-            <optgroup label="Por categoría">
-              {categorias.map((c) => <option key={c} value={'cat:' + c}>{c}</option>)}
-            </optgroup>
-          )}
-          <optgroup label="Por artículo">
-            {productos.map((p) => <option key={p.id} value={'art:' + p.id}>{p.nombre}</option>)}
-          </optgroup>
-        </select>
-      </div>
-
-      <GraficoComparacionTiendas productos={productos} alcance={alcance} />
-      <GraficoEvolucion alcance={alcance} marcaActualId={marcaActualId} />
+      <GraficoComparacionTiendas productos={productos} />
+      <GraficoEvolucion productos={productos} filtroCompetidores={filtroCompetidores} marcaActualId={marcaActualId} />
     </div>
   );
 }
@@ -296,6 +229,7 @@ export default function Panel() {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filtroCategorias, setFiltroCategorias] = useState([]);
   const [filtroCompetidores, setFiltroCompetidores] = useState([]);
+  const [filtroProductos, setFiltroProductos] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -322,6 +256,11 @@ export default function Panel() {
     return [...mapa.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productos]);
 
+  const productosDisponibles = useMemo(() => {
+    if (!productos) return [];
+    return [...productos].map((p) => ({ id: p.id, nombre: p.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [productos]);
+
   function alternar(lista, setLista, valor) {
     setLista(lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]);
   }
@@ -332,6 +271,7 @@ export default function Panel() {
     const filtrados = productos.filter((p) => {
       if (q && !(p.nombre.toLowerCase().includes(q) || (p.categoria || '').toLowerCase().includes(q))) return false;
       if (filtroCategorias.length > 0 && !filtroCategorias.includes(p.categoria)) return false;
+      if (filtroProductos.length > 0 && !filtroProductos.includes(p.id)) return false;
       if (filtroCompetidores.length > 0) {
         const tieneAlguno = (p.competencia_por_competidor || []).some((c) => filtroCompetidores.includes(c.competidor_id));
         if (!tieneAlguno) return false;
@@ -357,7 +297,7 @@ export default function Panel() {
         diferencia_vs_promedio_porcentaje: diferencia !== null && promedio ? (diferencia / promedio) * 100 : null,
       };
     });
-  }, [productos, busqueda, filtroCategorias, filtroCompetidores]);
+  }, [productos, busqueda, filtroCategorias, filtroProductos, filtroCompetidores]);
 
   // Une, sin repetir, todos los competidores que aparecen vinculados en
   // algun articulo del set filtrado - se usan como columnas de la tabla en
@@ -377,7 +317,7 @@ export default function Panel() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productosFiltrados, filtroCompetidores]);
 
-  const filtrosActivos = filtroCategorias.length + filtroCompetidores.length;
+  const filtrosActivos = filtroCategorias.length + filtroCompetidores.length + filtroProductos.length;
 
   if (error) return <p className="text-red-600">{error}</p>;
   if (!productos) return <p className="text-gray-400">Cargando...</p>;
@@ -425,7 +365,7 @@ export default function Panel() {
               placeholder="Buscar por nombre o categoría..."
               className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
-            {(categoriasDisponibles.length > 0 || competidoresDisponibles.length > 0) && (
+            {(categoriasDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
               <button
                 type="button"
                 onClick={() => setMostrarFiltros((v) => !v)}
@@ -489,10 +429,30 @@ export default function Panel() {
                   </div>
                 </div>
               )}
+              {productosDisponibles.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Producto</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {productosDisponibles.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => alternar(filtroProductos, setFiltroProductos, p.id)}
+                        className={
+                          'text-xs px-2.5 py-1 rounded-full border ' +
+                          (filtroProductos.includes(p.id) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                        }
+                      >
+                        {p.nombre}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {filtrosActivos > 0 && (
                 <button
                   type="button"
-                  onClick={() => { setFiltroCategorias([]); setFiltroCompetidores([]); }}
+                  onClick={() => { setFiltroCategorias([]); setFiltroCompetidores([]); setFiltroProductos([]); }}
                   className="text-xs text-coteja-azul-700 hover:underline"
                 >
                   Limpiar filtros
@@ -557,7 +517,7 @@ export default function Panel() {
             </table>
           </div>
 
-          <SeccionGraficos productos={productosFiltrados} marcaActualId={marcaActualId} />
+          <SeccionGraficos productos={productosFiltrados} filtroCompetidores={filtroCompetidores} marcaActualId={marcaActualId} />
         </>
       )}
     </div>

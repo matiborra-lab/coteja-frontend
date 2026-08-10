@@ -1,0 +1,551 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts';
+import { useMarca } from '../context/MarcaContext';
+import { api } from '../api/client';
+import { formatoMoneda } from '../utils/formato';
+
+const PERIODOS = [
+  { value: 15, label: '15 días' },
+  { value: 30, label: '1 mes' },
+  { value: 365, label: '1 año' },
+];
+
+const COLORES_LINEA = ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6'];
+const COLOR_MI_TIENDA = '#f59e0b';
+const COLOR_COMPETENCIA = '#8b5cf6';
+
+function formatoFechaCorta(fechaISO) {
+  const [, mes, dia] = fechaISO.split('-');
+  return String(Number(dia)) + '/' + String(Number(mes));
+}
+
+function Diferencia({ producto }) {
+  if (producto.diferencia_vs_promedio == null) return <span className="text-gray-400">-</span>;
+  const positiva = Number(producto.diferencia_vs_promedio) > 0;
+  const color = positiva ? 'text-red-600' : 'text-green-600';
+  const porcentaje = producto.diferencia_vs_promedio_porcentaje;
+  return (
+    <span className={color}>
+      {positiva ? '+' : ''}
+      {formatoMoneda(producto.diferencia_vs_promedio)}
+      {porcentaje != null && (
+        <span className="text-xs ml-1">
+          ({positiva ? '+' : ''}{Number(porcentaje).toFixed(1)}%)
+        </span>
+      )}
+    </span>
+  );
+}
+
+function NivelGeneral({ productos }) {
+  const conDatos = productos.filter((p) => p.promedio_competencia != null);
+  const sinDatos = productos.length - conDatos.length;
+  const posicionPromedio = conDatos.length
+    ? conDatos.reduce((acc, p) => acc + Number(p.diferencia_vs_promedio_porcentaje || 0), 0) / conDatos.length
+    : null;
+  const masCaros = conDatos.filter((p) => Number(p.diferencia_vs_promedio) > 0).length;
+  const masBaratos = conDatos.filter((p) => Number(p.diferencia_vs_promedio) < 0).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl shadow p-4">
+          <p className="text-sm text-gray-500">Posición promedio</p>
+          <p className={'text-2xl font-semibold ' + (posicionPromedio == null ? 'text-gray-400' : posicionPromedio > 0 ? 'text-red-600' : 'text-green-600')}>
+            {posicionPromedio == null ? '-' : (posicionPromedio > 0 ? '+' : '') + posicionPromedio.toFixed(1) + '%'}
+          </p>
+          <p className="text-xs text-gray-400">vs. promedio de competencia</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4">
+          <p className="text-sm text-gray-500">Productos más caros</p>
+          <p className="text-2xl font-semibold text-gray-900">{masCaros} / {conDatos.length}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4">
+          <p className="text-sm text-gray-500">Productos más baratos</p>
+          <p className="text-2xl font-semibold text-gray-900">{masBaratos} / {conDatos.length}</p>
+        </div>
+      </div>
+      {sinDatos > 0 && (
+        <p className="text-xs text-gray-400">
+          {sinDatos} producto{sinDatos > 1 ? 's' : ''} todavía no {sinDatos > 1 ? 'tienen' : 'tiene'} competencia vinculada - no entra{sinDatos > 1 ? 'n' : ''} en este cálculo.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function productosEnAlcance(productos, alcance) {
+  if (alcance.startsWith('cat:')) return productos.filter((p) => p.categoria === alcance.slice(4));
+  if (alcance.startsWith('art:')) return productos.filter((p) => String(p.id) === alcance.slice(4));
+  return productos;
+}
+
+function GraficoComparacionTiendas({ productos, alcance }) {
+  const barras = useMemo(() => {
+    const scoped = productosEnAlcance(productos, alcance);
+    const tuPrecios = scoped.map((p) => p.tu_precio).filter((v) => v != null);
+    const tuPrecio = tuPrecios.length ? tuPrecios.reduce((a, b) => a + b, 0) / tuPrecios.length : null;
+
+    const porTienda = new Map();
+    for (const p of scoped) {
+      for (const c of p.competencia_por_competidor || []) {
+        if (!porTienda.has(c.competidor_id)) porTienda.set(c.competidor_id, { nombre: c.competidor_nombre, precios: [] });
+        porTienda.get(c.competidor_id).precios.push(c.precio_final);
+      }
+    }
+
+    const resultado = [{ nombre: 'Mi tienda', precio: tuPrecio, esPropia: true }];
+    for (const t of porTienda.values()) {
+      resultado.push({ nombre: t.nombre, precio: t.precios.reduce((a, b) => a + b, 0) / t.precios.length, esPropia: false });
+    }
+    return resultado;
+  }, [productos, alcance]);
+
+  const hayDatos = barras.some((b) => b.precio != null);
+
+  return (
+    <div className="bg-white rounded-xl shadow p-4 space-y-2">
+      <h2 className="font-medium text-gray-900">Comparación entre tiendas</h2>
+      {!hayDatos ? (
+        <p className="text-sm text-gray-400">Todavía no hay precios suficientes para comparar.</p>
+      ) : (
+        <div style={{ width: '100%', height: 280 }}>
+          <ResponsiveContainer>
+            <BarChart data={barras}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="nombre" tick={{ fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={70} />
+              <Tooltip formatter={(v) => formatoMoneda(v)} />
+              <Bar dataKey="precio" radius={[4, 4, 0, 0]}>
+                {barras.map((b, i) => (
+                  <Cell key={i} fill={b.esPropia ? COLOR_MI_TIENDA : COLOR_COMPETENCIA} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GraficoEvolucion({ alcance, marcaActualId }) {
+  const [comparar, setComparar] = useState('promedio');
+  const [tipoFiltro, setTipoFiltro] = useState('TODAS');
+  const [periodo, setPeriodo] = useState(30);
+  const [datos, setDatos] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const desde = new Date(Date.now() - periodo * 24 * 60 * 60 * 1000);
+    params.set('desde', desde.toISOString());
+    if (alcance.startsWith('cat:')) params.set('categoria', alcance.slice(4));
+    if (alcance.startsWith('art:')) params.set('producto_propio_id', alcance.slice(4));
+    api.get('/api/panel/' + marcaActualId + '/evolucion?' + params.toString()).then(setDatos);
+  }, [marcaActualId, alcance, periodo]);
+
+  const tiposDisponibles = useMemo(() => {
+    if (!datos) return [];
+    return [...new Set(datos.competidores.map((c) => c.tipo).filter(Boolean))];
+  }, [datos]);
+
+  const competidoresFiltrados = useMemo(() => {
+    if (!datos) return [];
+    if (tipoFiltro === 'TODAS') return datos.competidores;
+    return datos.competidores.filter((c) => c.tipo === tipoFiltro);
+  }, [datos, tipoFiltro]);
+
+  const puntosGrafico = useMemo(() => {
+    if (!datos) return [];
+    return datos.puntos.map((punto) => {
+      const base = { fechaLabel: formatoFechaCorta(punto.fecha), tu_precio: punto.tu_precio };
+      if (comparar === 'promedio') {
+        const valores = competidoresFiltrados.map((c) => punto['c_' + c.id]).filter((v) => v != null);
+        base.promedio_competencia = valores.length ? valores.reduce((a, b) => a + b, 0) / valores.length : null;
+      } else {
+        for (const c of competidoresFiltrados) base['c_' + c.id] = punto['c_' + c.id] ?? null;
+      }
+      return base;
+    });
+  }, [datos, comparar, competidoresFiltrados]);
+
+  return (
+    <div className="bg-white rounded-xl shadow p-4 space-y-4">
+      <h2 className="font-medium text-gray-900">Evolución de precios</h2>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Comparar contra</label>
+          <select value={comparar} onChange={(e) => setComparar(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+            <option value="promedio">Promedio de la competencia</option>
+            <option value="todas">Cada competencia por separado</option>
+          </select>
+        </div>
+        {tiposDisponibles.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de competencia</label>
+            <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+              <option value="TODAS">Todas</option>
+              {tiposDisponibles.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="flex gap-1 ml-auto">
+          {PERIODOS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriodo(p.value)}
+              className={'text-xs px-2.5 py-1.5 rounded-lg font-medium ' + (periodo === p.value ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100')}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {datos == null ? (
+        <p className="text-sm text-gray-400">Cargando gráfico...</p>
+      ) : puntosGrafico.length === 0 ? (
+        <p className="text-sm text-gray-400">Todavía no hay suficiente historial para graficar este período.</p>
+      ) : (
+        <div style={{ width: '100%', height: 300 }}>
+          <ResponsiveContainer>
+            <LineChart data={puntosGrafico}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="fechaLabel" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={70} />
+              <Tooltip formatter={(v) => formatoMoneda(v)} />
+              <Legend />
+              <Line type="monotone" dataKey="tu_precio" name="Tu precio" stroke="#f59e0b" strokeWidth={2} connectNulls dot={{ r: 3 }} />
+              {comparar === 'promedio' ? (
+                <Line type="monotone" dataKey="promedio_competencia" name="Promedio competencia" stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={2} connectNulls dot={{ r: 3 }} />
+              ) : (
+                competidoresFiltrados.map((c, i) => (
+                  <Line
+                    key={c.id}
+                    type="monotone"
+                    dataKey={'c_' + c.id}
+                    name={c.nombre}
+                    stroke={COLORES_LINEA[i % COLORES_LINEA.length]}
+                    strokeDasharray="4 3"
+                    strokeWidth={2}
+                    connectNulls
+                    dot={{ r: 3 }}
+                  />
+                ))
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeccionGraficos({ productos, marcaActualId }) {
+  const categorias = useMemo(
+    () => [...new Set(productos.map((p) => p.categoria).filter(Boolean))],
+    [productos]
+  );
+  const [alcance, setAlcance] = useState('general');
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl shadow p-4">
+        <label className="block text-xs font-medium text-gray-500 mb-1">Ver</label>
+        <select value={alcance} onChange={(e) => setAlcance(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+          <option value="general">Promedio general</option>
+          {categorias.length > 0 && (
+            <optgroup label="Por categoría">
+              {categorias.map((c) => <option key={c} value={'cat:' + c}>{c}</option>)}
+            </optgroup>
+          )}
+          <optgroup label="Por artículo">
+            {productos.map((p) => <option key={p.id} value={'art:' + p.id}>{p.nombre}</option>)}
+          </optgroup>
+        </select>
+      </div>
+
+      <GraficoComparacionTiendas productos={productos} alcance={alcance} />
+      <GraficoEvolucion alcance={alcance} marcaActualId={marcaActualId} />
+    </div>
+  );
+}
+
+export default function Panel() {
+  const { marcaActualId } = useMarca();
+  const [productos, setProductos] = useState(null);
+  const [vista, setVista] = useState('articulo');
+  const [busqueda, setBusqueda] = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [filtroCategorias, setFiltroCategorias] = useState([]);
+  const [filtroCompetidores, setFiltroCompetidores] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setProductos(null);
+    api.get('/api/panel/' + marcaActualId).then(setProductos).catch((e) => setError(e.message));
+  }, [marcaActualId]);
+
+  // Facetas disponibles para el filtro desplegable - se calculan sobre
+  // TODOS los productos (no los ya filtrados), asi las opciones no
+  // desaparecen apenas se elige una.
+  const categoriasDisponibles = useMemo(() => {
+    if (!productos) return [];
+    return [...new Set(productos.map((p) => p.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  }, [productos]);
+
+  const competidoresDisponibles = useMemo(() => {
+    if (!productos) return [];
+    const mapa = new Map();
+    for (const p of productos) {
+      for (const c of p.competencia_por_competidor || []) {
+        if (!mapa.has(c.competidor_id)) mapa.set(c.competidor_id, c.competidor_nombre);
+      }
+    }
+    return [...mapa.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [productos]);
+
+  function alternar(lista, setLista, valor) {
+    setLista(lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]);
+  }
+
+  const productosFiltrados = useMemo(() => {
+    if (!productos) return [];
+    const q = busqueda.toLowerCase();
+    const filtrados = productos.filter((p) => {
+      if (q && !(p.nombre.toLowerCase().includes(q) || (p.categoria || '').toLowerCase().includes(q))) return false;
+      if (filtroCategorias.length > 0 && !filtroCategorias.includes(p.categoria)) return false;
+      if (filtroCompetidores.length > 0) {
+        const tieneAlguno = (p.competencia_por_competidor || []).some((c) => filtroCompetidores.includes(c.competidor_id));
+        if (!tieneAlguno) return false;
+      }
+      return true;
+    });
+
+    if (filtroCompetidores.length === 0) return filtrados;
+
+    // Con el filtro de competencia activo, "Promedio" y "Diferencia" tienen
+    // que reflejar solo a los competidores elegidos - si no, quedarian
+    // mostrando un promedio que no coincide con la unica columna visible.
+    return filtrados.map((p) => {
+      const competencia = (p.competencia_por_competidor || []).filter((c) => filtroCompetidores.includes(c.competidor_id));
+      const promedio = competencia.length ? competencia.reduce((acc, c) => acc + c.precio_final, 0) / competencia.length : null;
+      const tuPrecio = p.tu_precio != null ? Number(p.tu_precio) : null;
+      const diferencia = promedio !== null && tuPrecio !== null ? tuPrecio - promedio : null;
+      return {
+        ...p,
+        competencia_por_competidor: competencia,
+        promedio_competencia: promedio,
+        diferencia_vs_promedio: diferencia,
+        diferencia_vs_promedio_porcentaje: diferencia !== null && promedio ? (diferencia / promedio) * 100 : null,
+      };
+    });
+  }, [productos, busqueda, filtroCategorias, filtroCompetidores]);
+
+  // Une, sin repetir, todos los competidores que aparecen vinculados en
+  // algun articulo del set filtrado - se usan como columnas de la tabla en
+  // vez de una lista adentro de una sola celda "Competencia". Si el
+  // filtro de competencia esta activo, las columnas quedan acotadas a lo
+  // elegido aunque algun producto tenga otras vinculadas.
+  const competidoresColumnas = useMemo(() => {
+    const mapa = new Map();
+    for (const p of productosFiltrados) {
+      for (const c of p.competencia_por_competidor || []) {
+        if (filtroCompetidores.length > 0 && !filtroCompetidores.includes(c.competidor_id)) continue;
+        if (!mapa.has(c.competidor_id)) mapa.set(c.competidor_id, c.competidor_nombre);
+      }
+    }
+    return [...mapa.entries()]
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [productosFiltrados, filtroCompetidores]);
+
+  const filtrosActivos = filtroCategorias.length + filtroCompetidores.length;
+
+  if (error) return <p className="text-red-600">{error}</p>;
+  if (!productos) return <p className="text-gray-400">Cargando...</p>;
+
+  if (productos.length === 0) {
+    return (
+      <div className="text-center py-16 text-gray-500">
+        <p className="mb-2">Todavía no cargaste ningún artículo propio.</p>
+        <Link to="/productos" className="text-violet-600 hover:underline text-sm">
+          Empezá agregando tus artículos →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-gray-900">Panel de precios</h1>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setVista('articulo')}
+            className={'text-sm px-3 py-1.5 rounded-lg font-medium ' + (vista === 'articulo' ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100')}
+          >
+            Por artículo
+          </button>
+          <button
+            onClick={() => setVista('general')}
+            className={'text-sm px-3 py-1.5 rounded-lg font-medium ' + (vista === 'general' ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100')}
+          >
+            Nivel general
+          </button>
+        </div>
+      </div>
+
+      {vista === 'general' ? (
+        <NivelGeneral productos={productosFiltrados} />
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o categoría..."
+              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            />
+            {(categoriasDisponibles.length > 0 || competidoresDisponibles.length > 0) && (
+              <button
+                type="button"
+                onClick={() => setMostrarFiltros((v) => !v)}
+                className={
+                  'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
+                  (filtrosActivos > 0 ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M2 4a1 1 0 011-1h14a1 1 0 01.8 1.6l-5.8 7.73V17a1 1 0 01-1.45.9l-3-1.5A1 1 0 017 15.5v-3.17L1.2 4.6A1 1 0 012 4z" />
+                </svg>
+                Filtros
+                {filtrosActivos > 0 && (
+                  <span className="bg-violet-600 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                    {filtrosActivos}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+
+          {mostrarFiltros && (
+            <div className="bg-white rounded-xl shadow p-3 space-y-3">
+              {categoriasDisponibles.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Categoría</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {categoriasDisponibles.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => alternar(filtroCategorias, setFiltroCategorias, cat)}
+                        className={
+                          'text-xs px-2.5 py-1 rounded-full border ' +
+                          (filtroCategorias.includes(cat) ? 'bg-violet-100 border-violet-400 text-violet-800 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                        }
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {competidoresDisponibles.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Competencia</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {competidoresDisponibles.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => alternar(filtroCompetidores, setFiltroCompetidores, c.id)}
+                        className={
+                          'text-xs px-2.5 py-1 rounded-full border ' +
+                          (filtroCompetidores.includes(c.id) ? 'bg-violet-100 border-violet-400 text-violet-800 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                        }
+                      >
+                        {c.nombre}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {filtrosActivos > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setFiltroCategorias([]); setFiltroCompetidores([]); }}
+                  className="text-xs text-violet-600 hover:underline"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl shadow overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead className="bg-gray-50 text-gray-500 text-left">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Categoría</th>
+                  <th className="px-4 py-3 font-medium">Artículo</th>
+                  <th className="px-4 py-3 font-medium">Tu precio</th>
+                  {competidoresColumnas.map((col) => (
+                    <th key={col.id} className="px-4 py-3 font-medium whitespace-nowrap">{col.nombre}</th>
+                  ))}
+                  <th className="px-4 py-3 font-medium">Promedio</th>
+                  <th className="px-4 py-3 font-medium">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {productosFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={5 + competidoresColumnas.length} className="px-4 py-6 text-center text-gray-400">
+                      Ningún artículo coincide con "{busqueda}".
+                    </td>
+                  </tr>
+                ) : (
+                  productosFiltrados.map((p) => (
+                    <tr key={p.id}>
+                      <td className="px-4 py-3 align-top text-gray-500">{p.categoria || 'Sin categoría'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 align-top">{p.nombre}</td>
+                      <td className="px-4 py-3 align-top">{formatoMoneda(p.tu_precio)}</td>
+                      {competidoresColumnas.map((col) => {
+                        const c = (p.competencia_por_competidor || []).find((c) => c.competidor_id === col.id);
+                        return (
+                          <td key={col.id} className="px-4 py-3 align-top whitespace-nowrap">
+                            {c ? (
+                              <>
+                                {formatoMoneda(c.precio_final)}
+                                {c.en_promocion && (
+                                  <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">promo</span>
+                                )}
+                                {c.con_incidencia && (
+                                  <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">revisar</span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-gray-300">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-4 py-3 align-top">{formatoMoneda(p.promedio_competencia)}</td>
+                      <td className="px-4 py-3 align-top"><Diferencia producto={p} /></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <SeccionGraficos productos={productosFiltrados} marcaActualId={marcaActualId} />
+        </>
+      )}
+    </div>
+  );
+}

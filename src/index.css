@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+html {
+  /* Sin esto, el contenido centrado (mx-auto) se corre unos px de un lado a
+     otro cada vez que una pagina cambia de "sin scroll" a "con scroll" (o
+     viceversa) - la barra de scroll aparece/desaparece y le come ancho a la
+     ventana. Reservando el espacio siempre, el centrado queda estable. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}

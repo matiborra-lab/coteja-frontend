@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal } from './ui';
+import { obtenerPromptCapturado, suscribirsePrompt } from '../utils/pwaInstall';
 
 function esIOS() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -11,34 +12,23 @@ function yaInstalada() {
 
 // Boton de "instalar como app" en el header. En Chrome/Edge (desktop y
 // Android) dispara el prompt nativo del navegador via beforeinstallprompt -
-// no hace falta UI propia, el sistema operativo se encarga de anclarla.
+// no hace falta UI propia, el sistema operativo se encarga de anclarla. Ese
+// evento se captura en src/utils/pwaInstall.js (importado antes de montar
+// la app en main.jsx) porque Chrome puede dispararlo antes de que este
+// componente llegue a montarse - ahi se lee lo que ya se haya capturado, y
+// tambien se suscribe por si todavia no disparo.
 // iOS Safari nunca dispara ese evento, asi que ahi el clic muestra las
 // instrucciones manuales (Compartir -> Agregar a pantalla de inicio). Si
 // no hay prompt nativo disponible y no es iOS (navegador sin soporte), el
 // boton no se muestra - no hay ninguna accion util que ofrecer.
 export default function InstalarApp() {
-  const [prompt, setPrompt] = useState(null);
+  const [prompt, setPrompt] = useState(() => obtenerPromptCapturado());
   const [mostrarInstrucciones, setMostrarInstrucciones] = useState(false);
   const [instalada, setInstalada] = useState(true);
 
   useEffect(() => {
     setInstalada(yaInstalada());
-
-    function onBeforeInstall(e) {
-      e.preventDefault();
-      setPrompt(e);
-    }
-    function onInstalled() {
-      setInstalada(true);
-      setPrompt(null);
-    }
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
+    return suscribirsePrompt(setPrompt);
   }, []);
 
   if (instalada) return null;

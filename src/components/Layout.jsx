@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import InstalarApp from './InstalarApp';
+import CuentaMenu from './CuentaMenu';
 
 const linkClass = ({ isActive }) =>
   'px-3 py-2 rounded-lg text-sm font-medium ' +
@@ -63,14 +64,12 @@ export default function Layout() {
             <InstalarApp />
           </div>
 
-          {/* Desktop: header horizontal completo, igual que siempre. */}
+          {/* Desktop: header horizontal - lo especifico de cuenta (marca,
+              mail, volver a usuarios, mi cuenta, salir) vive en CuentaMenu
+              para que el nav no siga creciendo cada vez que se agrega una
+              seccion nueva. */}
           <div className="hidden md:flex items-center gap-6">
             <img src="/brand/coteja_logo_horizontal.png" alt="COTEJA" className="h-8" />
-            {usuario.rol === 'ADMIN' && marcaActualId && (
-              <button onClick={volverAUsuarios} className="text-sm text-coteja-azul-700 hover:underline">
-                ← Volver a Usuarios
-              </button>
-            )}
             {marcaActualId && (
               <nav className="flex gap-1">
                 <NavLink to="/" end className={linkClass}>Panel</NavLink>
@@ -80,28 +79,10 @@ export default function Layout() {
                 <NavLink to="/actividad" className={linkClass}>Actividad</NavLink>
               </nav>
             )}
-            {usuario.rol !== 'ADMIN' && (
-              <NavLink to="/mi-cuenta" className={linkClass}>Mi cuenta</NavLink>
-            )}
           </div>
-          <div className="hidden md:flex items-center gap-3 text-sm text-gray-500">
+          <div className="hidden md:flex items-center gap-2">
             <InstalarApp />
-            {marcas.length > 1 ? (
-              <select
-                value={marcaActualId || ''}
-                onChange={(e) => setMarcaActualId(e.target.value ? Number(e.target.value) : null)}
-                className="rounded-lg border border-gray-300 px-2 py-1 text-gray-700"
-              >
-                {!marcaActualId && <option value="">Elegí una marca</option>}
-                {marcas.map((m) => (
-                  <option key={m.id} value={m.id}>{m.nombre}</option>
-                ))}
-              </select>
-            ) : (
-              marcaActual && <span className="font-medium text-gray-700">{marcaActual.nombre}</span>
-            )}
-            <span>{usuario.email}</span>
-            <button onClick={logout} className="text-red-600 hover:underline">Salir</button>
+            <CuentaMenu />
           </div>
         </div>
       </header>

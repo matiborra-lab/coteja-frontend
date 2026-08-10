@@ -86,11 +86,11 @@ export function Leyenda({ children }) {
 
 export function AuthCard({ titulo, subtitulo, children }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow p-8 border-2 border-coteja-azul-900">
-        <img src="/brand/coteja_logo_primary.png" alt="COTEJA" className="h-20 mx-auto mb-4" />
+    <div className="min-h-screen flex items-center justify-center bg-coteja-azul-900 px-4">
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8">
+        <img src="/brand/coteja_logo_primary.png" alt="COTEJA" className="h-32 mx-auto mb-4" />
         {titulo && <h1 className="text-2xl font-semibold text-gray-900 mb-1 text-center">{titulo}</h1>}
-        {subtitulo && <p className="text-gray-500 mb-6 text-center">{subtitulo}</p>}
+        {subtitulo && <p className="text-sm text-gray-500 mb-6 text-center">{subtitulo}</p>}
         {children}
       </div>
     </div>

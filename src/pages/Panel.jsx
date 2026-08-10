@@ -19,6 +19,7 @@ const PERIODOS = [
 const COLORES_LINEA = ['#64748b', '#0ea5e9', '#94a3b8', '#0369a1', '#475569', '#7dd3fc', '#334155'];
 const COLOR_MI_TIENDA = '#011c3b';
 const COLOR_COMPETENCIA = '#9ca3af';
+const COLOR_PROMEDIO = '#02662e';
 
 function formatoFechaCorta(fechaISO) {
   const [, mes, dia] = fechaISO.split('-');
@@ -100,11 +101,21 @@ function GraficoComparacionTiendas({ productos, alcance }) {
       }
     }
 
-    const resultado = [{ nombre: 'Mi tienda', precio: tuPrecio, esPropia: true }];
+    const competidores = [];
     for (const t of porTienda.values()) {
-      resultado.push({ nombre: t.nombre, precio: t.precios.reduce((a, b) => a + b, 0) / t.precios.length, esPropia: false });
+      competidores.push({ nombre: t.nombre, precio: t.precios.reduce((a, b) => a + b, 0) / t.precios.length, esPropia: false });
     }
-    return resultado;
+
+    // Promedio de la competencia como una barra mas (igual al que se ve en
+    // la tabla de arriba) - se ubica intercalada segun su valor, no fija al
+    // final, y es la unica barra verde (dato destacado, manual de marca).
+    if (competidores.length) {
+      const promedio = competidores.reduce((a, b) => a + b.precio, 0) / competidores.length;
+      competidores.push({ nombre: 'Promedio', precio: promedio, esPromedio: true });
+    }
+    competidores.sort((a, b) => a.precio - b.precio);
+
+    return [{ nombre: 'Mi tienda', precio: tuPrecio, esPropia: true }, ...competidores];
   }, [productos, alcance]);
 
   const hayDatos = barras.some((b) => b.precio != null);
@@ -124,7 +135,7 @@ function GraficoComparacionTiendas({ productos, alcance }) {
               <Tooltip formatter={(v) => formatoMoneda(v)} />
               <Bar dataKey="precio" radius={[4, 4, 0, 0]}>
                 {barras.map((b, i) => (
-                  <Cell key={i} fill={b.esPropia ? COLOR_MI_TIENDA : COLOR_COMPETENCIA} />
+                  <Cell key={i} fill={b.esPropia ? COLOR_MI_TIENDA : b.esPromedio ? COLOR_PROMEDIO : COLOR_COMPETENCIA} />
                 ))}
               </Bar>
             </BarChart>

@@ -103,7 +103,7 @@ function GraficoComparacionTiendas({ productos }) {
     // final, y es la unica barra verde (dato destacado, manual de marca).
     if (competidores.length) {
       const promedio = competidores.reduce((a, b) => a + b.precio, 0) / competidores.length;
-      competidores.push({ nombre: 'Promedio', precio: promedio, esPromedio: true });
+      competidores.push({ nombre: 'Promedio competencia', precio: promedio, esPromedio: true });
     }
     competidores.sort((a, b) => a.precio - b.precio);
 
@@ -471,7 +471,7 @@ export default function Panel() {
                   {competidoresColumnas.map((col) => (
                     <th key={col.id} className="px-4 py-3 font-medium whitespace-nowrap">{col.nombre}</th>
                   ))}
-                  <th className="px-4 py-3 font-medium">Promedio</th>
+                  <th className="px-4 py-3 font-medium">Promedio competencia</th>
                   <th className="px-4 py-3 font-medium">Diferencia</th>
                 </tr>
               </thead>
@@ -508,7 +508,7 @@ export default function Panel() {
                           </td>
                         );
                       })}
-                      <td className="px-4 py-3 align-top">{formatoMoneda(p.promedio_competencia)}</td>
+                      <td className="px-4 py-3 align-top font-bold">{formatoMoneda(p.promedio_competencia)}</td>
                       <td className="px-4 py-3 align-top"><Diferencia producto={p} /></td>
                     </tr>
                   ))

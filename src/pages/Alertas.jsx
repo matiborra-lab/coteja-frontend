@@ -69,7 +69,7 @@ function ChipsEmailInput({ value, onChange }) {
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregar(); } }}
         onBlur={agregar}
         placeholder="mail@ejemplo.com y Enter"
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
       />
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
@@ -85,7 +85,7 @@ function SelectorDiasSemana({ value, onChange }) {
           key={dia}
           onClick={() => onChange(value.includes(dia) ? value.filter((d) => d !== dia) : [...value, dia])}
           title={NOMBRES_DIAS_LARGO[dia]}
-          className={'w-8 h-8 rounded-full text-xs font-medium transition ' + (value.includes(dia) ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}
+          className={'w-8 h-8 rounded-full text-xs font-medium transition ' + (value.includes(dia) ? 'bg-coteja-azul-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}
         >
           {NOMBRES_DIAS_CORTO[dia]}
         </button>
@@ -102,7 +102,7 @@ function SelectorDiasMes({ value, onChange }) {
           type="button"
           key={dia}
           onClick={() => onChange(value.includes(dia) ? value.filter((d) => d !== dia) : [...value, dia])}
-          className={'w-8 h-8 rounded text-xs font-medium transition ' + (value.includes(dia) ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}
+          className={'w-8 h-8 rounded text-xs font-medium transition ' + (value.includes(dia) ? 'bg-coteja-azul-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200')}
         >
           {dia}
         </button>
@@ -632,7 +632,7 @@ export default function Alertas() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">Alertas</h1>
-        <button onClick={() => { setAlertaEditando(null); setMostrarForm(true); }} className="text-sm text-violet-600 hover:underline">
+        <button onClick={() => { setAlertaEditando(null); setMostrarForm(true); }} className="text-sm text-coteja-azul-700 hover:underline">
           + Nueva alerta
         </button>
       </div>
@@ -692,13 +692,13 @@ export default function Alertas() {
                   </td>
                   <td className="p-3 align-top">
                     <div className="flex flex-col items-start gap-1">
-                      <button onClick={() => { setAlertaEditando(a); setMostrarForm(true); }} className="text-xs text-violet-600 hover:underline whitespace-nowrap">
+                      <button onClick={() => { setAlertaEditando(a); setMostrarForm(true); }} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
                         Editar
                       </button>
-                      <button onClick={() => duplicar(a)} disabled={accionandoId === a.id} className="text-xs text-violet-600 hover:underline whitespace-nowrap disabled:opacity-50">
+                      <button onClick={() => duplicar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap disabled:opacity-50">
                         Duplicar
                       </button>
-                      <button onClick={() => pausarOReactivar(a)} disabled={accionandoId === a.id} className="text-xs text-violet-600 hover:underline whitespace-nowrap disabled:opacity-50">
+                      <button onClick={() => pausarOReactivar(a)} disabled={accionandoId === a.id} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap disabled:opacity-50">
                         {a.estado === 'PAUSADA' ? 'Reactivar' : 'Pausar'}
                       </button>
                     </div>

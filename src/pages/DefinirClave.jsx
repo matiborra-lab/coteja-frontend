@@ -19,7 +19,7 @@ export default function DefinirClave() {
       <AuthCard titulo="Link invalido">
         <p className="text-sm text-gray-600">
           Este link no es válido o ya lo usaste. Pedí uno nuevo desde{' '}
-          <Link to="/olvide-clave" className="text-violet-600 underline">acá</Link>.
+          <Link to="/olvide-clave" className="text-coteja-azul-700 underline">acá</Link>.
         </p>
       </AuthCard>
     );

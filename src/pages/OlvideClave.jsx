@@ -31,7 +31,7 @@ export default function OlvideClave() {
           <Boton type="submit" cargando={cargando}>{cargando ? 'Enviando...' : 'Enviar link'}</Boton>
         </form>
       )}
-      <Link to="/login" className="block text-center text-sm text-violet-600 hover:underline mt-4">
+      <Link to="/login" className="block text-center text-sm text-coteja-azul-700 hover:underline mt-4">
         Volver al login
       </Link>
     </AuthCard>

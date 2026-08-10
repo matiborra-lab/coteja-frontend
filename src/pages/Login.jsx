@@ -26,14 +26,14 @@ export default function Login() {
   }
 
   return (
-    <AuthCard titulo="COTEJA" subtitulo="Ingresá a tu cuenta">
+    <AuthCard subtitulo="Ingresá a tu cuenta">
       <form onSubmit={onSubmit} className="space-y-4">
         <Campo label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         <Campo label="Contraseña" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Boton type="submit" cargando={cargando}>{cargando ? 'Ingresando...' : 'Ingresar'}</Boton>
       </form>
-      <Link to="/olvide-clave" className="block text-center text-sm text-violet-600 hover:underline mt-4">
+      <Link to="/olvide-clave" className="block text-center text-sm text-coteja-azul-700 hover:underline mt-4">
         Olvidé mi contraseña
       </Link>
     </AuthCard>

@@ -13,9 +13,12 @@ const PERIODOS = [
   { value: 365, label: '1 año' },
 ];
 
-const COLORES_LINEA = ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6'];
-const COLOR_MI_TIENDA = '#f59e0b';
-const COLOR_COMPETENCIA = '#8b5cf6';
+// Paleta de marca (Manual de marca COTEJA, pag. 09): azul oscuro para la
+// serie propia, grises/azules neutros para competidores - el verde queda
+// reservado para un dato destacado puntual, no para "decorar" el grafico.
+const COLORES_LINEA = ['#64748b', '#0ea5e9', '#94a3b8', '#0369a1', '#475569', '#7dd3fc', '#334155'];
+const COLOR_MI_TIENDA = '#011c3b';
+const COLOR_COMPETENCIA = '#9ca3af';
 
 function formatoFechaCorta(fechaISO) {
   const [, mes, dia] = fechaISO.split('-');
@@ -197,7 +200,7 @@ function GraficoEvolucion({ alcance, marcaActualId }) {
             <button
               key={p.value}
               onClick={() => setPeriodo(p.value)}
-              className={'text-xs px-2.5 py-1.5 rounded-lg font-medium ' + (periodo === p.value ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100')}
+              className={'text-xs px-2.5 py-1.5 rounded-lg font-medium ' + (periodo === p.value ? 'bg-coteja-azul-100 text-coteja-azul-800' : 'text-gray-500 hover:bg-gray-100')}
             >
               {p.label}
             </button>
@@ -218,7 +221,7 @@ function GraficoEvolucion({ alcance, marcaActualId }) {
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatoMoneda(v)} width={70} />
               <Tooltip formatter={(v) => formatoMoneda(v)} />
               <Legend />
-              <Line type="monotone" dataKey="tu_precio" name="Tu precio" stroke="#f59e0b" strokeWidth={2} connectNulls dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="tu_precio" name="Tu precio" stroke={COLOR_MI_TIENDA} strokeWidth={2} connectNulls dot={{ r: 3 }} />
               {comparar === 'promedio' ? (
                 <Line type="monotone" dataKey="promedio_competencia" name="Promedio competencia" stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={2} connectNulls dot={{ r: 3 }} />
               ) : (
@@ -372,7 +375,7 @@ export default function Panel() {
     return (
       <div className="text-center py-16 text-gray-500">
         <p className="mb-2">Todavía no cargaste ningún artículo propio.</p>
-        <Link to="/productos" className="text-violet-600 hover:underline text-sm">
+        <Link to="/productos" className="text-coteja-azul-700 hover:underline text-sm">
           Empezá agregando tus artículos →
         </Link>
       </div>
@@ -386,13 +389,13 @@ export default function Panel() {
         <div className="flex gap-1">
           <button
             onClick={() => setVista('articulo')}
-            className={'text-sm px-3 py-1.5 rounded-lg font-medium ' + (vista === 'articulo' ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100')}
+            className={'text-sm px-3 py-1.5 rounded-lg font-medium ' + (vista === 'articulo' ? 'bg-coteja-azul-100 text-coteja-azul-800' : 'text-gray-500 hover:bg-gray-100')}
           >
             Por artículo
           </button>
           <button
             onClick={() => setVista('general')}
-            className={'text-sm px-3 py-1.5 rounded-lg font-medium ' + (vista === 'general' ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-100')}
+            className={'text-sm px-3 py-1.5 rounded-lg font-medium ' + (vista === 'general' ? 'bg-coteja-azul-100 text-coteja-azul-800' : 'text-gray-500 hover:bg-gray-100')}
           >
             Nivel general
           </button>
@@ -409,7 +412,7 @@ export default function Panel() {
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por nombre o categoría..."
-              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
             {(categoriasDisponibles.length > 0 || competidoresDisponibles.length > 0) && (
               <button
@@ -417,7 +420,7 @@ export default function Panel() {
                 onClick={() => setMostrarFiltros((v) => !v)}
                 className={
                   'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
-                  (filtrosActivos > 0 ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                  (filtrosActivos > 0 ? 'border-coteja-azul-300 bg-coteja-azul-50 text-coteja-azul-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
                 }
               >
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -425,7 +428,7 @@ export default function Panel() {
                 </svg>
                 Filtros
                 {filtrosActivos > 0 && (
-                  <span className="bg-violet-600 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                  <span className="bg-coteja-azul-800 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
                     {filtrosActivos}
                   </span>
                 )}
@@ -446,7 +449,7 @@ export default function Panel() {
                         onClick={() => alternar(filtroCategorias, setFiltroCategorias, cat)}
                         className={
                           'text-xs px-2.5 py-1 rounded-full border ' +
-                          (filtroCategorias.includes(cat) ? 'bg-violet-100 border-violet-400 text-violet-800 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                          (filtroCategorias.includes(cat) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
                         }
                       >
                         {cat}
@@ -466,7 +469,7 @@ export default function Panel() {
                         onClick={() => alternar(filtroCompetidores, setFiltroCompetidores, c.id)}
                         className={
                           'text-xs px-2.5 py-1 rounded-full border ' +
-                          (filtroCompetidores.includes(c.id) ? 'bg-violet-100 border-violet-400 text-violet-800 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                          (filtroCompetidores.includes(c.id) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
                         }
                       >
                         {c.nombre}
@@ -479,7 +482,7 @@ export default function Panel() {
                 <button
                   type="button"
                   onClick={() => { setFiltroCategorias([]); setFiltroCompetidores([]); }}
-                  className="text-xs text-violet-600 hover:underline"
+                  className="text-xs text-coteja-azul-700 hover:underline"
                 >
                   Limpiar filtros
                 </button>

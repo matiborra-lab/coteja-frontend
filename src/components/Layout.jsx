@@ -6,7 +6,7 @@ import { api } from '../api/client';
 
 const linkClass = ({ isActive }) =>
   'px-3 py-2 rounded-lg text-sm font-medium ' +
-  (isActive ? 'bg-violet-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100');
+  (isActive ? 'bg-coteja-azul-100 text-coteja-azul-800' : 'text-gray-600 hover:bg-gray-100');
 
 export default function Layout() {
   const { usuario, logout } = useAuth();
@@ -34,9 +34,9 @@ export default function Layout() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <span className="font-semibold text-gray-900">COTEJA</span>
+            <img src="/brand/coteja_logo_horizontal.png" alt="COTEJA" className="h-8" />
             {usuario.rol === 'ADMIN' && marcaActualId && (
-              <button onClick={volverAUsuarios} className="text-sm text-violet-600 hover:underline">
+              <button onClick={volverAUsuarios} className="text-sm text-coteja-azul-700 hover:underline">
                 ← Volver a Usuarios
               </button>
             )}

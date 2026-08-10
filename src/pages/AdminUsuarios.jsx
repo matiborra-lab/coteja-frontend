@@ -131,7 +131,7 @@ function FilaMarcaAdmin({ marca, onVerPanel, onEliminar, onGuardarTipo, onGuarda
     <div className="border border-gray-100 rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-gray-900 text-sm">{marca.nombre}</span>
-        <button onClick={onVerPanel} className="text-xs text-violet-600 hover:underline whitespace-nowrap">
+        <button onClick={onVerPanel} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
           Ver panel →
         </button>
       </div>
@@ -157,7 +157,7 @@ function FilaMarcaAdmin({ marca, onVerPanel, onEliminar, onGuardarTipo, onGuarda
               placeholder="ej: 3511234567"
               className="flex-1 min-w-0 rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
             />
-            <button onClick={guardarTelefono} disabled={guardandoTelefono} className="text-xs text-violet-600 hover:underline whitespace-nowrap">
+            <button onClick={guardarTelefono} disabled={guardandoTelefono} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
               Guardar
             </button>
             {marca.telefono && (
@@ -292,10 +292,10 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
         <div className="space-y-2">
           <h3 className="text-xs font-semibold uppercase text-gray-400">Accesos</h3>
           <div className="flex flex-wrap gap-3">
-            <button onClick={reenviar} disabled={reenviando} className="text-sm text-violet-600 hover:underline disabled:opacity-50">
+            <button onClick={reenviar} disabled={reenviando} className="text-sm text-coteja-azul-700 hover:underline disabled:opacity-50">
               Reenviar acceso
             </button>
-            <a href={'mailto:' + u.email} className="text-sm text-violet-600 hover:underline">
+            <a href={'mailto:' + u.email} className="text-sm text-coteja-azul-700 hover:underline">
               Contactar por mail →
             </a>
           </div>
@@ -318,7 +318,7 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase text-gray-400">Marcas</h3>
               {puedeAgregarMarca && (
-                <button onClick={() => setMostrarNuevaMarca(true)} className="text-xs text-violet-600 hover:underline">
+                <button onClick={() => setMostrarNuevaMarca(true)} className="text-xs text-coteja-azul-700 hover:underline">
                   + Agregar marca
                 </button>
               )}
@@ -417,7 +417,7 @@ function TiendasPendientes() {
             </div>
             <p className="text-gray-500">Marca: {c.marca_nombre}</p>
             {c.url ? (
-              <a href={c.url} target="_blank" rel="noreferrer" className="text-violet-600 hover:underline break-all">{c.url}</a>
+              <a href={c.url} target="_blank" rel="noreferrer" className="text-coteja-azul-700 hover:underline break-all">{c.url}</a>
             ) : (
               <p className="text-gray-400">Sin link (carta subida a mano)</p>
             )}
@@ -428,7 +428,7 @@ function TiendasPendientes() {
           <button
             onClick={() => marcarRevisado(c.id)}
             disabled={accionandoId === c.id}
-            className="text-xs text-violet-600 hover:underline whitespace-nowrap"
+            className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap"
           >
             Marcar como revisado
           </button>
@@ -500,13 +500,13 @@ export default function AdminUsuarios() {
       <div className="flex gap-1 border-b border-gray-200">
         <button
           onClick={() => setTab('usuarios')}
-          className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'usuarios' ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500')}
+          className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'usuarios' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
         >
           Usuarios
         </button>
         <button
           onClick={() => setTab('pendientes')}
-          className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'pendientes' ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500')}
+          className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'pendientes' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
         >
           Tiendas pendientes
         </button>
@@ -548,7 +548,7 @@ export default function AdminUsuarios() {
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por email o marca..."
-              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
           )}
 
@@ -587,7 +587,7 @@ export default function AdminUsuarios() {
                               <button
                                 key={m.id}
                                 onClick={() => verPanel(m.id)}
-                                className="h-7 flex items-center text-xs bg-violet-50 text-violet-700 px-2 rounded-lg hover:bg-violet-100 whitespace-nowrap"
+                                className="h-7 flex items-center text-xs bg-coteja-azul-50 text-coteja-azul-800 px-2 rounded-lg hover:bg-coteja-azul-100 whitespace-nowrap"
                               >
                                 {m.nombre} →
                               </button>
@@ -617,7 +617,7 @@ export default function AdminUsuarios() {
                       <td className="p-3 align-top text-gray-500 text-xs whitespace-nowrap">{formatoFecha(u.ultimo_login)}</td>
                       <td className="p-3 align-top text-gray-600 whitespace-nowrap">{rolLabel(u.rol)}</td>
                       <td className="p-3 align-top">
-                        <button onClick={() => setUsuarioViendo(u)} className="text-xs text-violet-600 hover:underline whitespace-nowrap">
+                        <button onClick={() => setUsuarioViendo(u)} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
                           Ver
                         </button>
                       </td>

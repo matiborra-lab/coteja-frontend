@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+/* Paleta oficial de marca (Manual de marca COTEJA v1.1) - Azul Coteja
+   #011C3B y Verde Coteja #02662E ancladas en el escalon 900/700
+   respectivamente (son colores muy oscuros, mas cerca de esos escalones
+   que del 500 "de libro" de una paleta Tailwind), con tintes intermedios
+   interpolados hacia blanco para fondos/badges/hover claros. */
+@theme {
+  --color-coteja-azul-50: #f7f9fb;
+  --color-coteja-azul-100: #e7edf2;
+  --color-coteja-azul-200: #c7d3de;
+  --color-coteja-azul-300: #9fb1c4;
+  --color-coteja-azul-400: #6e8aa8;
+  --color-coteja-azul-500: #46648a;
+  --color-coteja-azul-600: #29456a;
+  --color-coteja-azul-700: #17304e;
+  --color-coteja-azul-800: #092138;
+  --color-coteja-azul-900: #011c3b;
+  --color-coteja-azul-950: #010e1f;
+
+  --color-coteja-verde-50: #eaf5ee;
+  --color-coteja-verde-100: #d2eada;
+  --color-coteja-verde-200: #a6d5b7;
+  --color-coteja-verde-300: #74bb8e;
+  --color-coteja-verde-400: #3e9d68;
+  --color-coteja-verde-500: #1d8049;
+  --color-coteja-verde-600: #0e6b36;
+  --color-coteja-verde-700: #02662e;
+  --color-coteja-verde-800: #024f24;
+  --color-coteja-verde-900: #013d1b;
+
+  --color-coteja-niebla: #e7edf2;
+  --color-coteja-humo: #f7f9fb;
+}
+
 html {
   /* Sin esto, el contenido centrado (mx-auto) se corre unos px de un lado a
      otro cada vez que una pagina cambia de "sin scroll" a "con scroll" (o

@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../context/AuthContext';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
+import InstalarApp from './InstalarApp';
 
 const linkClass = ({ isActive }) =>
   'px-3 py-2 rounded-lg text-sm font-medium ' +
@@ -58,6 +59,9 @@ export default function Layout() {
             </button>
             <img src="/brand/coteja_logo_horizontal.png" alt="COTEJA" className="h-7" />
           </div>
+          <div className="flex md:hidden items-center">
+            <InstalarApp />
+          </div>
 
           {/* Desktop: header horizontal completo, igual que siempre. */}
           <div className="hidden md:flex items-center gap-6">
@@ -73,6 +77,7 @@ export default function Layout() {
                 <NavLink to="/productos" className={linkClass}>Artículos</NavLink>
                 <NavLink to="/competidores" className={linkClass}>Tiendas</NavLink>
                 <NavLink to="/alertas" className={linkClass}>Alertas</NavLink>
+                <NavLink to="/actividad" className={linkClass}>Actividad</NavLink>
               </nav>
             )}
             {usuario.rol !== 'ADMIN' && (
@@ -80,6 +85,7 @@ export default function Layout() {
             )}
           </div>
           <div className="hidden md:flex items-center gap-3 text-sm text-gray-500">
+            <InstalarApp />
             {marcas.length > 1 ? (
               <select
                 value={marcaActualId || ''}
@@ -123,6 +129,7 @@ export default function Layout() {
                   <NavLink to="/productos" className={linkClassDrawer}>Artículos</NavLink>
                   <NavLink to="/competidores" className={linkClassDrawer}>Tiendas</NavLink>
                   <NavLink to="/alertas" className={linkClassDrawer}>Alertas</NavLink>
+                  <NavLink to="/actividad" className={linkClassDrawer}>Actividad</NavLink>
                 </nav>
               )}
               {usuario.rol !== 'ADMIN' && (

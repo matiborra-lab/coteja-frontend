@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
-import { Campo, Boton, Modal, Leyenda } from '../components/ui';
+import { Campo, Boton, Modal, Leyenda, LogoPlataforma } from '../components/ui';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { detectarPlataforma, esCucinaLink } from '../utils/plataformas';
 
@@ -25,7 +25,7 @@ function SelectorTipo({ valor, onChange, tiposExistentes }) {
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => { if (!valor) setCreandoNuevo(false); }}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
       />
     );
   }
@@ -37,7 +37,7 @@ function SelectorTipo({ valor, onChange, tiposExistentes }) {
         if (e.target.value === NUEVO_TIPO) { setCreandoNuevo(true); onChange(''); }
         else onChange(e.target.value);
       }}
-      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
     >
       <option value="">Sin tipo</option>
       {tiposExistentes.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -212,7 +212,7 @@ function VincularSelect({ producto, productosPropios, onVinculado }) {
           onChange={(e) => setNombreNuevo(e.target.value)}
           className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
         />
-        <button type="submit" disabled={guardando} className="text-xs text-violet-600 hover:underline whitespace-nowrap">Crear y vincular</button>
+        <button type="submit" disabled={guardando} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">Crear y vincular</button>
         <button type="button" onClick={() => setCreandoArticulo(false)} className="text-xs text-gray-400">×</button>
       </form>
     );
@@ -281,7 +281,7 @@ function FormAgregarProducto({ competidorId, productosPropios, onAgregado }) {
           <select
             value={vincularCon}
             onChange={(e) => setVincularCon(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
           >
             <option value="">Sin vincular (solo agregar)</option>
             {productosPropios.map((pp) => <option key={pp.id} value={pp.id}>{pp.nombre}</option>)}
@@ -569,12 +569,12 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
               multiple
               disabled={subiendoArchivos}
               onChange={(e) => { if (e.target.files.length) leerCartaSubida(e.target.files); e.target.value = ''; }}
-              className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-violet-50 file:text-violet-700 file:font-medium file:cursor-pointer hover:file:bg-violet-100 disabled:opacity-50"
+              className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-coteja-azul-50 file:text-coteja-azul-800 file:font-medium file:cursor-pointer hover:file:bg-coteja-azul-100 disabled:opacity-50"
             />
           </label>
           {subiendoArchivos && (
             <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span className="inline-block w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+              <span className="inline-block w-4 h-4 border-2 border-coteja-azul-300 border-t-coteja-azul-800 rounded-full animate-spin" />
               Leyendo la carta con IA...
             </div>
           )}
@@ -583,7 +583,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
       );
     }
     return (
-      <button onClick={escanear} className="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium rounded-lg py-2.5 transition">
+      <button onClick={escanear} className="w-full bg-coteja-verde-700 hover:bg-coteja-verde-800 text-white font-medium rounded-lg py-2.5 transition">
         Ver carta completa
       </button>
     );
@@ -592,7 +592,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
   if (estado === 'cargando') {
     return (
       <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
-        <span className="inline-block w-4 h-4 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+        <span className="inline-block w-4 h-4 border-2 border-coteja-azul-300 border-t-coteja-azul-800 rounded-full animate-spin" />
         Leyendo la carta...
       </div>
     );
@@ -618,7 +618,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
         placeholder="Buscar en la carta..."
-        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
       />
 
       <Leyenda>Si un producto o una variante no aparece acá, es porque no tiene un precio asociado en la carta de la tienda.</Leyenda>
@@ -627,7 +627,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
         <button
           onClick={actualizarTodosLosPrecios}
           disabled={actualizandoTodos}
-          className="w-full text-sm bg-violet-50 hover:bg-violet-100 disabled:opacity-50 text-violet-700 font-medium rounded-lg py-2 transition"
+          className="w-full text-sm bg-coteja-azul-50 hover:bg-coteja-azul-100 disabled:opacity-50 text-coteja-azul-800 font-medium rounded-lg py-2 transition"
         >
           {actualizandoTodos
             ? 'Actualizando...'
@@ -662,7 +662,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                       <span className="text-xs text-gray-400">{expandidos.has(fila.base) ? '▲' : '▼'}</span>
                     </button>
                     {expandidos.has(fila.base) && (
-                      <ul className="pl-3 divide-y divide-violet-100 border-l-2 border-violet-300 ml-2 bg-violet-50/50 rounded-r-md">
+                      <ul className="pl-3 divide-y divide-coteja-azul-100 border-l-2 border-coteja-azul-300 ml-2 bg-coteja-azul-50/50 rounded-r-md">
                         {fila.variantes.map((v) => (
                           <FilaItem
                             key={clave(v)}
@@ -685,8 +685,8 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
       </div>
 
       {seleccionado && esActualizacion && (
-        <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 space-y-2">
-          <p className="text-sm text-violet-900 flex items-center gap-1.5 flex-wrap">
+        <div className="bg-coteja-azul-50 border border-coteja-azul-200 rounded-lg p-3 space-y-2">
+          <p className="text-sm text-coteja-azul-900 flex items-center gap-1.5 flex-wrap">
             <strong>{seleccionado.nombre}</strong>
             {' · ya está vinculado, actualizar precio a '}
             <span className="inline-flex items-center gap-1">
@@ -697,7 +697,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                 step="0.01"
                 value={precioManual}
                 onChange={(e) => setPrecioManual(e.target.value)}
-                className="w-24 rounded border border-violet-300 px-1.5 py-0.5 text-sm"
+                className="w-24 rounded border border-coteja-azul-300 px-1.5 py-0.5 text-sm"
               />
             </span>
           </p>
@@ -706,7 +706,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
             <button
               onClick={actualizarPrecioSeleccionado}
               disabled={guardando || precioManual === '' || isNaN(Number(precioManual))}
-              className="text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm font-medium"
+              className="text-white bg-coteja-verde-700 hover:bg-coteja-verde-800 disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm font-medium"
             >
               {guardando ? '...' : '✓ Actualizar precio'}
             </button>
@@ -718,8 +718,8 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
       )}
 
       {seleccionado && !esActualizacion && (
-        <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 space-y-2">
-          <p className="text-sm text-violet-900 flex items-center gap-1.5 flex-wrap">
+        <div className="bg-coteja-azul-50 border border-coteja-azul-200 rounded-lg p-3 space-y-2">
+          <p className="text-sm text-coteja-azul-900 flex items-center gap-1.5 flex-wrap">
             <strong>{seleccionado.nombre}</strong>
             {agregadoSeleccionado && <> + <strong>{agregadoSeleccionado.nombre}</strong></>}
             {' · '}
@@ -731,7 +731,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                   step="0.01"
                   value={precioManual}
                   onChange={(e) => setPrecioManual(e.target.value)}
-                  className="w-24 rounded border border-violet-300 px-1.5 py-0.5 text-sm"
+                  className="w-24 rounded border border-coteja-azul-300 px-1.5 py-0.5 text-sm"
                 />
               </span>
             ) : (
@@ -751,7 +751,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                     key={a.parametro}
                     className={
                       'flex items-center gap-1 text-xs px-2 py-1 rounded-full border cursor-pointer ' +
-                      (agregadoSeleccionado === a ? 'bg-violet-100 border-violet-400 text-violet-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                      (agregadoSeleccionado === a ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
                     }
                   >
                     <input
@@ -798,7 +798,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                 (creandoArticulo && !nombreNuevo.trim()) ||
                 (SISTEMAS_SIN_SCRAPING.includes(seleccionado.sistema) && (precioManual === '' || isNaN(Number(precioManual))))
               }
-              className="text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm font-medium"
+              className="text-white bg-coteja-verde-700 hover:bg-coteja-verde-800 disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm font-medium"
             >
               {guardando ? '...' : '✓ Guardar'}
             </button>
@@ -842,7 +842,7 @@ function PrecioEditableProducto({ producto, onGuardado }) {
         <button
           type="button"
           onClick={() => { setValor(producto.ultimo_precio ?? ''); setEditando(true); }}
-          className="text-gray-500 underline decoration-dotted hover:text-violet-700"
+          className="text-gray-500 underline decoration-dotted hover:text-coteja-azul-800"
           title="Editar precio a mano"
         >
           {formatoMoneda(producto.ultimo_precio)}
@@ -914,9 +914,12 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
     <Modal titulo={tienda.nombre} onClose={onCerrar} ancho="max-w-2xl">
       <div className="space-y-3">
         <div className="text-xs text-gray-500 space-y-0.5">
-          <p><span className="font-medium text-gray-700">Plataforma:</span> {tienda.plataforma}</p>
+          <p className="flex items-center gap-1.5">
+            <LogoPlataforma plataforma={tienda.plataforma} className="w-4 h-4" />
+            <span><span className="font-medium text-gray-700">Plataforma:</span> {tienda.plataforma}</span>
+          </p>
           {tienda.url ? (
-            <p className="break-all"><span className="font-medium text-gray-700">Link:</span> <a href={tienda.url} target="_blank" rel="noreferrer" className="text-violet-600 hover:underline">{tienda.url}</a></p>
+            <p className="break-all"><span className="font-medium text-gray-700">Link:</span> <a href={tienda.url} target="_blank" rel="noreferrer" className="text-coteja-azul-700 hover:underline">{tienda.url}</a></p>
           ) : (
             <p><span className="font-medium text-gray-700">Link:</span> sin link (carta subida a mano)</p>
           )}
@@ -925,13 +928,13 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
         <div className="flex gap-1 border-b border-gray-100">
           <button
             onClick={() => setTab('productos')}
-            className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'productos' ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500')}
+            className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'productos' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
           >
             Productos
           </button>
           <button
             onClick={() => setTab('vinculados')}
-            className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'vinculados' ? 'border-violet-600 text-violet-700' : 'border-transparent text-gray-500')}
+            className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'vinculados' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
           >
             Artículos vinculados {vinculados.length > 0 && '(' + vinculados.length + ')'}
           </button>
@@ -970,10 +973,10 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
                       <span className="font-medium text-gray-900">{p.nombre}</span>{' '}
                       <span className="text-gray-500">{formatoMoneda(p.ultimo_precio)}</span>
                       {p.sistema === 'MANUAL' && tienda.plataforma === 'DESCONOCIDA' && (
-                        <span className="ml-2 text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded">detectado solo · revisar</span>
+                        <span className="ml-2 text-xs bg-coteja-azul-100 text-coteja-azul-800 px-1.5 py-0.5 rounded">detectado solo · revisar</span>
                       )}
                       {p.sistema === 'MAPEO_IA' && (
-                        <span className="ml-2 text-xs bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded">leído por IA</span>
+                        <span className="ml-2 text-xs bg-coteja-azul-100 text-coteja-azul-800 px-1.5 py-0.5 rounded">leído por IA</span>
                       )}
                       {p.estado && p.estado !== 'OK' && (
                         <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">{p.estado}</span>
@@ -999,7 +1002,7 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
                     <div>
                       <span className="font-medium text-gray-900">{p.nombre}</span>
                       <span className="text-gray-400"> → </span>
-                      <span className="text-violet-700">{p.producto_propio_nombre}</span>
+                      <span className="text-coteja-azul-800">{p.producto_propio_nombre}</span>
                       <span className="text-gray-400"> · </span>
                       <PrecioEditableProducto producto={p} onGuardado={() => { cargarProductos(); onCambioGlobal(); }} />
                     </div>
@@ -1031,12 +1034,15 @@ function TiendaCard({ tienda, vinculados, onClick, destacada }) {
       }
     >
       <div className="flex items-center justify-between">
-        <div>
-          <p className="font-medium text-gray-900">
-            {tienda.nombre}
-            {tienda.tipo && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded align-middle">{tienda.tipo}</span>}
-          </p>
-          <p className="text-xs text-gray-500">{tienda.plataforma}</p>
+        <div className="flex items-center gap-3">
+          <LogoPlataforma plataforma={tienda.plataforma} />
+          <div>
+            <p className="font-medium text-gray-900">
+              {tienda.nombre}
+              {tienda.tipo && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded align-middle">{tienda.tipo}</span>}
+            </p>
+            <p className="text-xs text-gray-500">{tienda.plataforma}</p>
+          </div>
         </div>
         <span className="text-xs text-gray-400">Ver →</span>
       </div>
@@ -1138,7 +1144,7 @@ export default function Competidores() {
 
       <div className="flex items-center justify-between">
         <h2 className="font-medium text-gray-900">Competencia</h2>
-        <button onClick={() => setMostrarFormNuevaTienda((v) => !v)} className="text-sm text-violet-600 hover:underline">
+        <button onClick={() => setMostrarFormNuevaTienda((v) => !v)} className="text-sm text-coteja-azul-700 hover:underline">
           {mostrarFormNuevaTienda ? 'Cerrar' : '+ Nuevo competidor'}
         </button>
       </div>
@@ -1159,7 +1165,7 @@ export default function Competidores() {
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar por nombre o plataforma..."
-          className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
         />
       )}
 

@@ -108,7 +108,7 @@ function FilaArticulo({ p, expandido, onToggle, onCambio }) {
         <p className="font-medium text-gray-900">{p.nombre}</p>
         <div className="flex items-center gap-3">
           <p className="font-medium">{formatoMoneda(p.tu_precio)}</p>
-          <span className="text-xs text-violet-600">
+          <span className="text-xs text-coteja-azul-700">
             {p.competencia.length} vinculado{p.competencia.length !== 1 ? 's' : ''} {expandido ? '▲' : '▼'}
           </span>
         </div>
@@ -208,7 +208,7 @@ export default function ProductosPropios() {
               required
               value={nombre}
               onChange={(e) => onNombreChange(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
           </div>
           <div>
@@ -216,7 +216,7 @@ export default function ProductosPropios() {
             <input
               value={categoria}
               onChange={(e) => { setCategoria(e.target.value); setCategoriaTocadaAMano(true); }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
             <PillsCategoria
               valor={categoria}
@@ -226,7 +226,7 @@ export default function ProductosPropios() {
           </div>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={cargando} className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-medium rounded-lg py-2 transition">
+        <button type="submit" disabled={cargando} className="w-full bg-coteja-verde-700 hover:bg-coteja-verde-800 disabled:opacity-50 text-white font-medium rounded-lg py-2 transition">
           {cargando ? 'Sumando...' : 'Sumar a mis artículos'}
         </button>
       </form>
@@ -237,7 +237,7 @@ export default function ProductosPropios() {
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar por nombre o categoría..."
-          className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
         />
       )}
 

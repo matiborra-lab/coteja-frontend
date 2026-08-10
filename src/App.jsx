@@ -11,6 +11,7 @@ import Panel from './pages/Panel';
 import ProductosPropios from './pages/ProductosPropios';
 import Competidores from './pages/Competidores';
 import Alertas from './pages/Alertas';
+import Actividad from './pages/Actividad';
 import AdminUsuarios from './pages/AdminUsuarios';
 import MiCuenta from './pages/MiCuenta';
 
@@ -43,6 +44,7 @@ export default function App() {
                   <Route path="/productos" element={<ProductosPropios />} />
                   <Route path="/competidores" element={<Competidores />} />
                   <Route path="/alertas" element={<Alertas />} />
+                  <Route path="/actividad" element={<Actividad />} />
                   <Route path="/mi-cuenta" element={<MiCuenta />} />
                   <Route element={<RequireAdmin />}>
                     <Route path="/admin" element={<AdminUsuarios />} />

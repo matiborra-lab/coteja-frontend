@@ -29,6 +29,7 @@ async function pedido(metodo, ruta, body, { auth = true } = {}) {
   if (!resp.ok) {
     const error = new Error(data?.error || 'Error de red (' + resp.status + ')');
     error.status = resp.status;
+    error.data = data;
     throw error;
   }
   return data;

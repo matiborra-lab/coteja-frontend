@@ -279,6 +279,95 @@ function SeccionFiltro({ titulo, cantidad, abierta, onToggle, children }) {
 // guardar/aplicar/renombrar/borrar configuraciones de filtros del Panel -
 // personales por usuario, guardadas en el backend (panel_filtros_guardados)
 // para no perderlas al cambiar de dispositivo.
+// Boton secundario (no compite visualmente con las acciones principales)
+// para forzar un chequeo de precios fuera del ciclo automatico de 30 min -
+// dispara el mismo scraping (POST /api/panel/:marcaId/actualizar delega en
+// worker/chequeo.js) acotado a esta marca. El cooldown de 15 min es el que
+// impone el BACKEND (ver esa ruta): el boton queda gris pero sigue
+// clickeable durante el cooldown - tocarlo no reintenta el pedido, solo
+// muestra un cartel flotante y transitorio con cuanto falta, para no
+// ocupar espacio fijo en la pantalla con un contador permanente.
+function BotonActualizarPrecios({ marcaActualId }) {
+  const [actualizando, setActualizando] = useState(false);
+  const [disponibleEn, setDisponibleEn] = useState(null);
+  const [avisoCooldown, setAvisoCooldown] = useState(false);
+  const avisoTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!disponibleEn) return;
+    const ms = disponibleEn.getTime() - Date.now();
+    if (ms <= 0) {
+      setDisponibleEn(null);
+      return;
+    }
+    const id = setTimeout(() => setDisponibleEn(null), ms);
+    return () => clearTimeout(id);
+  }, [disponibleEn]);
+
+  useEffect(() => () => clearTimeout(avisoTimeoutRef.current), []);
+
+  function mostrarAviso() {
+    setAvisoCooldown(true);
+    clearTimeout(avisoTimeoutRef.current);
+    avisoTimeoutRef.current = setTimeout(() => setAvisoCooldown(false), 3500);
+  }
+
+  async function disparar() {
+    setActualizando(true);
+    try {
+      const data = await api.post('/api/panel/' + marcaActualId + '/actualizar');
+      setDisponibleEn(new Date(data.proxima_disponible));
+    } catch (err) {
+      if (err.status === 429 && err.data?.segundos_restantes) {
+        setDisponibleEn(new Date(Date.now() + err.data.segundos_restantes * 1000));
+        mostrarAviso();
+      }
+    } finally {
+      setActualizando(false);
+    }
+  }
+
+  function alClick() {
+    if (actualizando) return;
+    if (disponibleEn) {
+      mostrarAviso();
+      return;
+    }
+    disparar();
+  }
+
+  const enCooldown = disponibleEn != null;
+  const grisaceo = actualizando || enCooldown;
+  const minutosParaAviso = disponibleEn ? Math.max(1, Math.ceil((disponibleEn.getTime() - Date.now()) / 60000)) : 0;
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={alClick}
+        disabled={actualizando}
+        className={
+          'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
+          (grisaceo ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+        }
+      >
+        <svg
+          width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+          className={actualizando ? 'animate-spin' : ''}
+        >
+          <path fillRule="evenodd" d="M4 10a6 6 0 0110.65-3.79.75.75 0 11-1.15.96A4.5 4.5 0 005.5 10a.75.75 0 01-1.5 0zm11.9-3.5a.75.75 0 01.75.75v3a.75.75 0 01-.75.75h-3a.75.75 0 010-1.5h1.5a.75.75 0 000-.02V7.25a.75.75 0 01.75-.75zM16 10a.75.75 0 01.75.75 6 6 0 01-10.65 3.79.75.75 0 111.15-.96A4.5 4.5 0 0014.5 10a.75.75 0 011.5 0zM4.1 13.5a.75.75 0 01-.75-.75v-3a.75.75 0 01.75-.75h3a.75.75 0 010 1.5H5.6v1.25a.75.75 0 01-.75.75H4.1z" clipRule="evenodd" />
+        </svg>
+        {actualizando ? 'Actualizando precios' : 'Actualizar precios'}
+      </button>
+      {avisoCooldown && (
+        <div className="absolute right-0 top-full mt-1.5 z-20 text-xs bg-gray-900 text-white px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+          Volvé a intentar en {minutosParaAviso} minuto{minutosParaAviso === 1 ? '' : 's'}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FiltrosGuardadosMenu({ marcaActualId, filtrosActuales, onAplicar }) {
   const [abierto, setAbierto] = useState(false);
   const [guardados, setGuardados] = useState([]);
@@ -676,35 +765,38 @@ export default function Panel() {
         <NivelGeneral productos={productosFiltrados} />
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <input
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por nombre o categoría..."
-              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
-            />
-            {(categoriasDisponibles.length > 0 || tiposDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
-              <button
-                type="button"
-                onClick={() => setMostrarFiltros((v) => !v)}
-                className={
-                  'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
-                  (filtrosActivos > 0 ? 'border-coteja-azul-300 bg-coteja-azul-50 text-coteja-azul-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
-                }
-              >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path d="M2 4a1 1 0 011-1h14a1 1 0 01.8 1.6l-5.8 7.73V17a1 1 0 01-1.45.9l-3-1.5A1 1 0 017 15.5v-3.17L1.2 4.6A1 1 0 012 4z" />
-                </svg>
-                Filtros
-                {filtrosActivos > 0 && (
-                  <span className="bg-coteja-azul-800 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-                    {filtrosActivos}
-                  </span>
-                )}
-              </button>
-            )}
-            <FiltrosGuardadosMenu marcaActualId={marcaActualId} filtrosActuales={filtrosActuales} onAplicar={aplicarFiltrosGuardados} />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <input
+                type="search"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre o categoría..."
+                className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+              />
+              {(categoriasDisponibles.length > 0 || tiposDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => setMostrarFiltros((v) => !v)}
+                  className={
+                    'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
+                    (filtrosActivos > 0 ? 'border-coteja-azul-300 bg-coteja-azul-50 text-coteja-azul-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                  }
+                >
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M2 4a1 1 0 011-1h14a1 1 0 01.8 1.6l-5.8 7.73V17a1 1 0 01-1.45.9l-3-1.5A1 1 0 017 15.5v-3.17L1.2 4.6A1 1 0 012 4z" />
+                  </svg>
+                  Filtros
+                  {filtrosActivos > 0 && (
+                    <span className="bg-coteja-azul-800 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                      {filtrosActivos}
+                    </span>
+                  )}
+                </button>
+              )}
+              <FiltrosGuardadosMenu marcaActualId={marcaActualId} filtrosActuales={filtrosActuales} onAplicar={aplicarFiltrosGuardados} />
+            </div>
+            <BotonActualizarPrecios marcaActualId={marcaActualId} />
           </div>
 
           {filtrosActivos > 0 && (

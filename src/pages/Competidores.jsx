@@ -4,7 +4,7 @@ import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import { Campo, Boton, Modal, Leyenda, LogoPlataforma } from '../components/ui';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
-import { detectarPlataforma, esCucinaLink } from '../utils/plataformas';
+import { detectarPlataforma, esCucinaLink, esLinkMultiSucursalCucina } from '../utils/plataformas';
 import { sugerirCategoria } from '../utils/categorias';
 
 const NUEVO_ARTICULO = '__nuevo__';
@@ -164,7 +164,15 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
 
       <Campo label="Link de la tienda virtual" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
 
-      {esCucinaLink(url) && (
+      {esLinkMultiSucursalCucina(url) ? (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
+          <p className="text-xs text-amber-800">
+            Este link muestra el selector de sucursales de la cadena, no la carta de un local puntual - todavía no
+            vamos a poder leer precios desde acá. Entrá a ese link, elegí tu sucursal, y pegá el link que te lleva
+            directo a su carta (el que se abre al tocar ese local).
+          </p>
+        </div>
+      ) : esCucinaLink(url) && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
           <p className="text-xs text-gray-500">
             Detectamos Cucina Link. Por lo general no hace falta nada más - completá esto solo si el link de arriba
@@ -992,7 +1000,15 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado }) {
         </p>
       </div>
 
-      {esCucinaLink(url) && (
+      {esLinkMultiSucursalCucina(url) ? (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
+          <p className="text-xs text-amber-800">
+            Este link muestra el selector de sucursales de la cadena, no la carta de un local puntual - todavía no
+            vamos a poder leer precios desde acá. Entrá a ese link, elegí tu sucursal, y pegá el link que te lleva
+            directo a su carta (el que se abre al tocar ese local).
+          </p>
+        </div>
+      ) : esCucinaLink(url) && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
           <p className="text-xs text-gray-500">
             Detectamos Cucina Link. Por lo general no hace falta nada más - completá esto solo si el link de arriba

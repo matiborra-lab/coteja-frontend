@@ -23,3 +23,19 @@ export function detectarPlataforma(url) {
 export function esCucinaLink(url) {
   return /cucina\.link|oraclecloudapps\.com/i.test(String(url || ''));
 }
+
+// Cucina Link tiene, en sus dos formatos, una pagina "elegi tu sucursal"
+// que lista TODAS las sucursales de una cadena en vez de llevar directo a
+// la carta de una - si el cliente pega ESE link (en vez del de su local
+// puntual), ninguna lectura automatica va a poder funcionar. Se distingue
+// por el parametro/path: la tienda puntual usa ?s=<slug> (nuevo) o
+// /pedidos/categorias?...&t=<slug> (viejo); el selector de sucursales usa
+// ?c=<cadena> o /pedidos/tiendas (viejo), o ya redirigido, /sucursales.
+export function esLinkMultiSucursalCucina(url) {
+  const u = String(url || '');
+  if (!esCucinaLink(u)) return false;
+  if (/\/pedidos\/tiendas(\?|$)/i.test(u)) return true;
+  if (/\/sucursales(\?|$)/i.test(u)) return true;
+  if (/[?&]c=/i.test(u) && !/[?&][st]=/i.test(u)) return true;
+  return false;
+}

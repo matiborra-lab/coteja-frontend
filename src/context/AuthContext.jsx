@@ -18,6 +18,12 @@ export function AuthProvider({ children }) {
       const data = await api.get('/api/auth/yo');
       setUsuario(data);
     } catch {
+      // El token dejo de ser valido sin pasar por logout() (vencio solo, o
+      // un admin desactivo la cuenta / le cambio el rol) - si no
+      // desuscribimos igual aca, un dispositivo compartido se queda
+      // escuchando las notificaciones de esta cuenta con la sesion ya
+      // muerta. No hace falta esperarlo: ya vamos a limpiar el estado.
+      desuscribirsePush().catch(() => {});
       borrarToken();
       setUsuario(null);
     } finally {

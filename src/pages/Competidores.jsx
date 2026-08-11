@@ -1045,7 +1045,14 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCer
     onCambioGlobal();
   }
 
-  const vinculados = (productos || []).filter((p) => p.vinculo_id);
+  // Un producto vinculado no se repite en las dos pestañas: una vez que
+  // pasa a "Artículos vinculados" (mas recientes primero), deja de listarse
+  // aca en "Productos" - esa pestaña queda solo para lo que todavia hace
+  // falta revisar/vincular.
+  const sinVincular = (productos || []).filter((p) => !p.vinculo_id);
+  const vinculados = (productos || [])
+    .filter((p) => p.vinculo_id)
+    .sort((a, b) => new Date(b.vinculo_creado_en) - new Date(a.vinculo_creado_en));
 
   return (
     <Modal titulo={tienda.nombre} onClose={onCerrar} ancho="max-w-2xl">
@@ -1067,7 +1074,7 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCer
             onClick={() => setTab('productos')}
             className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'productos' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
           >
-            Productos
+            Actualización
           </button>
           <button
             onClick={() => setTab('vinculados')}
@@ -1103,14 +1110,16 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCer
               />
             )}
 
-            <h3 className="text-xs font-semibold uppercase text-gray-400 pt-2">Ya cargados</h3>
+            <h3 className="text-xs font-semibold uppercase text-gray-400 pt-2">Sin vincular</h3>
             {productos == null ? (
               <p className="text-sm text-gray-400">Cargando productos...</p>
-            ) : productos.length === 0 ? (
-              <p className="text-sm text-gray-400">Sin productos cargados todavía.</p>
+            ) : sinVincular.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                {productos.length === 0 ? 'Sin productos cargados todavía.' : 'Ya vinculaste todos los productos cargados - mirá "Artículos vinculados".'}
+              </p>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {productos.map((p) => (
+                {sinVincular.map((p) => (
                   <li key={p.id} className="py-2 space-y-1.5 text-sm">
                     <div>
                       <span className="font-medium text-gray-900">{p.nombre}</span>{' '}

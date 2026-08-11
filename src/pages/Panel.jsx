@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -275,6 +275,173 @@ function SeccionFiltro({ titulo, cantidad, abierta, onToggle, children }) {
   );
 }
 
+// Menu tipo CuentaMenu (relative + absolute + click afuera cierra) para
+// guardar/aplicar/renombrar/borrar configuraciones de filtros del Panel -
+// personales por usuario, guardadas en el backend (panel_filtros_guardados)
+// para no perderlas al cambiar de dispositivo.
+function FiltrosGuardadosMenu({ marcaActualId, filtrosActuales, onAplicar }) {
+  const [abierto, setAbierto] = useState(false);
+  const [guardados, setGuardados] = useState([]);
+  const [cargando, setCargando] = useState(false);
+  const [creando, setCreando] = useState(false);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+  const [error, setError] = useState('');
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function onClickFuera(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setAbierto(false);
+        setCreando(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickFuera);
+    return () => document.removeEventListener('mousedown', onClickFuera);
+  }, []);
+
+  useEffect(() => {
+    if (!abierto) return;
+    setCargando(true);
+    setError('');
+    api.get('/api/panel-filtros/' + marcaActualId)
+      .then(setGuardados)
+      .catch((e) => setError(e.message))
+      .finally(() => setCargando(false));
+  }, [abierto, marcaActualId]);
+
+  async function guardarActual() {
+    if (!nombreNuevo.trim()) return;
+    try {
+      const nuevo = await api.post('/api/panel-filtros', { marca_id: marcaActualId, nombre: nombreNuevo.trim(), filtros: filtrosActuales });
+      setGuardados((g) => [...g, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setNombreNuevo('');
+      setCreando(false);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function alternarDefault(f) {
+    try {
+      await api.patch('/api/panel-filtros/' + f.id, { es_default: !f.es_default });
+      setGuardados((g) => g.map((x) => ({ ...x, es_default: x.id === f.id ? !f.es_default : false })));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function renombrar(f) {
+    const nuevoNombre = prompt('Nuevo nombre para este filtro:', f.nombre);
+    if (!nuevoNombre || !nuevoNombre.trim() || nuevoNombre.trim() === f.nombre) return;
+    try {
+      const actualizado = await api.patch('/api/panel-filtros/' + f.id, { nombre: nuevoNombre.trim() });
+      setGuardados((g) => g.map((x) => (x.id === f.id ? actualizado : x)).sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function eliminar(f) {
+    if (!confirm('¿Eliminar el filtro guardado "' + f.nombre + '"?')) return;
+    try {
+      await api.del('/api/panel-filtros/' + f.id);
+      setGuardados((g) => g.filter((x) => x.id !== f.id));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  function aplicar(f) {
+    onAplicar(f.filtros);
+    setAbierto(false);
+  }
+
+  const hayFiltrosParaGuardar =
+    filtrosActuales.categorias.length + filtrosActuales.tipos.length + filtrosActuales.competidores.length + filtrosActuales.productos.length > 0;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="flex items-center gap-1.5 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 px-3 py-2 whitespace-nowrap"
+      >
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v14l6-3 6 3V4a2 2 0 00-2-2H6z" clipRule="evenodd" />
+        </svg>
+        Filtros guardados
+      </button>
+
+      {abierto && (
+        <div className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 text-sm">
+          {cargando ? (
+            <p className="px-3 py-2 text-gray-400">Cargando...</p>
+          ) : guardados.length === 0 ? (
+            <p className="px-3 py-2 text-gray-400">Todavía no guardaste ningún filtro.</p>
+          ) : (
+            <div className="py-1 max-h-64 overflow-y-auto">
+              {guardados.map((f) => (
+                <div key={f.id} className="px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50">
+                  <button type="button" onClick={() => aplicar(f)} className="flex-1 text-left text-gray-700 truncate">
+                    {f.nombre}
+                    {f.es_default && <span className="ml-1.5 text-[10px] text-coteja-azul-700 font-semibold align-middle">DEFAULT</span>}
+                  </button>
+                  <button
+                    type="button"
+                    title={f.es_default ? 'Quitar como default' : 'Marcar como default'}
+                    onClick={() => alternarDefault(f)}
+                    className={f.es_default ? 'text-coteja-azul-700' : 'text-gray-300 hover:text-gray-500'}
+                  >
+                    ★
+                  </button>
+                  <button type="button" title="Renombrar" onClick={() => renombrar(f)} className="text-gray-300 hover:text-gray-500">
+                    ✎
+                  </button>
+                  <button type="button" title="Eliminar" onClick={() => eliminar(f)} className="text-gray-300 hover:text-red-500">
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="px-3 py-1 text-xs text-red-600">{error}</p>}
+
+          <div className="border-t border-gray-100 pt-1 mt-1 px-3">
+            {creando ? (
+              <div className="flex items-center gap-1.5 py-1.5">
+                <input
+                  autoFocus
+                  value={nombreNuevo}
+                  onChange={(e) => setNombreNuevo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') guardarActual();
+                    if (e.key === 'Escape') setCreando(false);
+                  }}
+                  placeholder="Nombre del filtro..."
+                  className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+                />
+                <button type="button" onClick={guardarActual} className="text-coteja-azul-700 font-medium">
+                  Guardar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCreando(true)}
+                disabled={!hayFiltrosParaGuardar}
+                className="w-full text-left py-2 text-coteja-azul-700 hover:underline disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
+              >
+                + Guardar filtro actual
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SeccionGraficos({ productos, filtroCompetidores, marcaActualId }) {
   return (
     <div className="space-y-4">
@@ -301,9 +468,39 @@ export default function Panel() {
     setSeccionesAbiertas((prev) => ({ ...prev, [clave]: !prev[clave] }));
   }
 
+  const filtrosActuales = {
+    categorias: filtroCategorias,
+    tipos: filtroTipos,
+    competidores: filtroCompetidores,
+    productos: filtroProductos,
+  };
+
+  function aplicarFiltrosGuardados(f) {
+    setFiltroCategorias(f.categorias || []);
+    setFiltroTipos(f.tipos || []);
+    setFiltroCompetidores(f.competidores || []);
+    setFiltroProductos(f.productos || []);
+  }
+
   useEffect(() => {
     setProductos(null);
     api.get('/api/panel/' + marcaActualId).then(setProductos).catch((e) => setError(e.message));
+  }, [marcaActualId]);
+
+  // El filtro guardado marcado "default" se aplica solo, una vez, al entrar
+  // al Panel (o al cambiar de marca) - despues de eso el usuario manda.
+  useEffect(() => {
+    let cancelado = false;
+    api.get('/api/panel-filtros/' + marcaActualId)
+      .then((lista) => {
+        if (cancelado) return;
+        const porDefecto = lista.find((f) => f.es_default);
+        if (porDefecto) aplicarFiltrosGuardados(porDefecto.filtros);
+      })
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
   }, [marcaActualId]);
 
   // Facetas disponibles para el filtro desplegable - se calculan sobre
@@ -490,6 +687,7 @@ export default function Panel() {
                 )}
               </button>
             )}
+            <FiltrosGuardadosMenu marcaActualId={marcaActualId} filtrosActuales={filtrosActuales} onAplicar={aplicarFiltrosGuardados} />
           </div>
 
           {filtrosActivos > 0 && (

@@ -612,6 +612,23 @@ export default function Panel() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productosFiltrados, filtroCompetidores, filtroTipos]);
 
+  // Para las tarjetas de mobile (a diferencia de la tabla de desktop, que
+  // necesita el mismo orden de columnas en todas las filas) cada tarjeta
+  // ordena SUS competidores de mas barato a mas caro - el calculo es
+  // independiente por articulo, no afecta a competidoresColumnas ni al
+  // orden de columnas de desktop. Los competidores sin precio para ese
+  // articulo (sin vinculo) quedan al final, sin orden particular entre si.
+  function competenciaOrdenadaMobile(producto) {
+    return competidoresColumnas
+      .map((col) => ({ col, c: (producto.competencia_por_competidor || []).find((c) => c.competidor_id === col.id) }))
+      .sort((a, b) => {
+        if (a.c && b.c) return Number(a.c.precio_final) - Number(b.c.precio_final);
+        if (a.c) return -1;
+        if (b.c) return 1;
+        return 0;
+      });
+  }
+
   const filtrosActivos = filtroCategorias.length + filtroTipos.length + filtroCompetidores.length + filtroProductos.length;
 
   function limpiarFiltros() {
@@ -930,29 +947,26 @@ export default function Panel() {
                     <span className="text-gray-500">Tu precio</span>
                     <span className="font-bold text-gray-900">{formatoMoneda(p.tu_precio)}</span>
                   </div>
-                  {competidoresColumnas.map((col) => {
-                    const c = (p.competencia_por_competidor || []).find((c) => c.competidor_id === col.id);
-                    return (
-                      <div key={col.id} className="flex items-center justify-between">
-                        <span className="text-gray-500">{col.nombre}</span>
-                        <span>
-                          {c ? (
-                            <>
-                              {formatoMoneda(c.precio_final)}
-                              {c.en_promocion && (
-                                <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">promo</span>
-                              )}
-                              {c.con_incidencia && (
-                                <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">revisar</span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {competenciaOrdenadaMobile(p).map(({ col, c }) => (
+                    <div key={col.id} className="flex items-center justify-between">
+                      <span className="text-gray-500">{col.nombre}</span>
+                      <span>
+                        {c ? (
+                          <>
+                            {formatoMoneda(c.precio_final)}
+                            {c.en_promocion && (
+                              <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">promo</span>
+                            )}
+                            {c.con_incidencia && (
+                              <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">revisar</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-300">-</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                     <span className="text-gray-500">Promedio competencia</span>
                     <span className="font-bold">{formatoMoneda(p.promedio_competencia)}</span>

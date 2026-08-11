@@ -946,12 +946,13 @@ function PrecioEditableProducto({ producto, onGuardado }) {
 // No toca los productos ya vinculados: cada uno sigue leyendo con su propio
 // sistema/url/parametro, esto solo cambia de que plataforma sale "Ver carta
 // completa" (CartaCompleta) de aca en mas.
-function TabConfiguracion({ tienda, tiposExistentes, onGuardado }) {
+function TabConfiguracion({ tienda, tiposExistentes, onGuardado, onEliminado }) {
   const [nombre, setNombre] = useState(tienda.nombre);
   const [url, setUrl] = useState(tienda.url || '');
   const [urlTienda, setUrlTienda] = useState(tienda.url_tienda || '');
   const [tipo, setTipo] = useState(tienda.tipo || '');
   const [guardando, setGuardando] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
   const [error, setError] = useState('');
 
   const plataformaNueva = url.trim() ? (detectarPlataforma(url) || 'DESCONOCIDA') : 'DESCONOCIDA';
@@ -979,6 +980,27 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado }) {
       setError(err.message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function eliminarTienda() {
+    if (
+      !confirm(
+        '¿Eliminar "' + tienda.nombre + '"? Vas a dejar de verla en las comparaciones actuales, pero el historial ' +
+          'de precios que ya tenías registrado se conserva - vas a seguir viendo su evolución en los gráficos, ' +
+          'ahora con el nombre "Tienda eliminada: ' + tienda.nombre + '".'
+      )
+    ) {
+      return;
+    }
+    setError('');
+    setEliminando(true);
+    try {
+      await api.del('/api/competidores/' + tienda.id);
+      onEliminado();
+    } catch (err) {
+      setError(err.message);
+      setEliminando(false);
     }
   }
 
@@ -1030,6 +1052,19 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado }) {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <Boton type="submit" cargando={guardando}>{guardando ? 'Guardando...' : 'Guardar cambios'}</Boton>
+
+      {!tienda.es_propia && (
+        <div className="pt-3 mt-3 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={eliminarTienda}
+            disabled={eliminando}
+            className="text-xs text-red-600 hover:text-red-700 hover:underline disabled:opacity-50"
+          >
+            {eliminando ? 'Eliminando...' : 'Eliminar tienda'}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
@@ -1184,7 +1219,15 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCer
             )}
           </div>
         ) : (
-          <TabConfiguracion tienda={tienda} tiposExistentes={tiposExistentes} onGuardado={onTiendaActualizada} />
+          <TabConfiguracion
+            tienda={tienda}
+            tiposExistentes={tiposExistentes}
+            onGuardado={onTiendaActualizada}
+            onEliminado={() => {
+              onCambioGlobal();
+              onCerrar();
+            }}
+          />
         )}
       </div>
     </Modal>

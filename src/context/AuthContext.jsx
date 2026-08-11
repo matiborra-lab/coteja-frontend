@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { api, guardarToken, borrarToken } from '../api/client';
+import { desuscribirsePush } from '../utils/push';
 
 const AuthContext = createContext(null);
 
@@ -43,8 +44,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
-    borrarToken();
+    // La UI se siente instantanea (setUsuario ya dispara el redirect a
+    // /login), pero el token recien se borra despues de intentar
+    // desuscribir el push - esa llamada necesita ir autenticada. Sin esto,
+    // un dispositivo compartido (mostrador, tablet del local) seguiria
+    // recibiendo las notificaciones del usuario anterior despues de que
+    // otro inicie sesion ahi.
     setUsuario(null);
+    desuscribirsePush().catch(() => {}).finally(borrarToken);
   }, []);
 
   return (

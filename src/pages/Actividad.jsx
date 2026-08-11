@@ -14,12 +14,19 @@ const RANGOS = [
   { value: 30, label: 'Último mes' },
 ];
 
+// Sin "timeZone" explicito esto usa el huso horario del NAVEGADOR, no el
+// del negocio - hoy funciona porque el cliente esta en Argentina, pero no
+// es correcto (y es justo el bug que causaba el desfase de 3hs en el mail,
+// que se arma en el servidor). Se fija en un solo lugar para que Actividad,
+// el mail y cualquier otro canal siempre coincidan.
+const HUSO_HORARIO_AR = 'America/Argentina/Cordoba';
+
 function formatoFechaHora(fechaISO) {
-  return new Date(fechaISO).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(fechaISO).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: HUSO_HORARIO_AR });
 }
 
 function formatoFechaSeccion(fechaISO) {
-  const texto = new Date(fechaISO).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const texto = new Date(fechaISO).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: HUSO_HORARIO_AR });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 

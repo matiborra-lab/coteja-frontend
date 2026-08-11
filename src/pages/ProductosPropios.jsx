@@ -3,29 +3,45 @@ import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { sugerirCategoria } from '../utils/categorias';
-import { Leyenda } from '../components/ui';
+import { Leyenda, Toast } from '../components/ui';
 
 const SIN_CATEGORIA = 'Sin categoría';
-const MAX_SUGERENCIAS = 2;
+const NUEVA_CATEGORIA = '__nueva__';
 
-function PillsCategoria({ valor, onChange, sugerencias }) {
-  if (sugerencias.length === 0) return null;
+// Elegir de las categorias YA EXISTENTES (no texto libre) para que dos
+// articulos de la misma categoria no queden separados por un typo - hoy se
+// agrupan solo si el texto es identico. Crear una categoria nueva sigue
+// siendo posible, pero es una accion explicita ("+ Crear categoría nueva"),
+// no algo que pase por escribir distinto sin querer.
+function SelectorCategoria({ valor, onChange, categoriasExistentes }) {
+  const [creandoNueva, setCreandoNueva] = useState(false);
+
+  if (creandoNueva) {
+    return (
+      <input
+        autoFocus
+        placeholder="Nombre de la categoría nueva"
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => { if (!valor) setCreandoNueva(false); }}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-wrap gap-1.5 mt-1.5">
-      {sugerencias.map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => onChange(valor === c ? '' : c)}
-          className={
-            'text-xs px-2.5 py-1 rounded-full border ' +
-            (valor === c ? 'bg-amber-100 border-amber-400 text-amber-800 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
-          }
-        >
-          {c}
-        </button>
-      ))}
-    </div>
+    <select
+      value={categoriasExistentes.includes(valor) ? valor : ''}
+      onChange={(e) => {
+        if (e.target.value === NUEVA_CATEGORIA) { setCreandoNueva(true); onChange(''); }
+        else onChange(e.target.value);
+      }}
+      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+    >
+      <option value="">Sin categoría</option>
+      {categoriasExistentes.map((c) => <option key={c} value={c}>{c}</option>)}
+      <option value={NUEVA_CATEGORIA}>+ Crear categoría nueva</option>
+    </select>
   );
 }
 
@@ -106,7 +122,7 @@ const AYUDA_ORDEN =
   'positivos: el menor va primero (ej: orden 1 antes que orden 2). Si lo dejás vacío, se ordena ' +
   'alfabéticamente.';
 
-function EditorArticulo({ articulo, onCerrar, onCambio }) {
+function EditorArticulo({ articulo, categoriasExistentes, onCerrar, onCambio, onExito }) {
   const [nombre, setNombre] = useState(articulo.nombre);
   const [categoria, setCategoria] = useState(articulo.categoria || '');
   const [orden, setOrden] = useState(articulo.orden ?? '');
@@ -124,8 +140,10 @@ function EditorArticulo({ articulo, onCerrar, onCambio }) {
         categoria: categoria || null,
         orden: orden === '' ? null : Number(orden),
       });
+      const categoriaNueva = categoria && !categoriasExistentes.includes(categoria);
       onCerrar();
       onCambio();
+      onExito(categoriaNueva ? 'Artículo actualizado. Categoría "' + categoria + '" creada.' : 'Artículo actualizado.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -148,12 +166,7 @@ function EditorArticulo({ articulo, onCerrar, onCambio }) {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
-          <input
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            placeholder="Sin categoría"
-            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-          />
+          <SelectorCategoria valor={categoria} onChange={setCategoria} categoriasExistentes={categoriasExistentes} />
         </div>
         <div>
           <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1">
@@ -181,7 +194,11 @@ function EditorArticulo({ articulo, onCerrar, onCambio }) {
   );
 }
 
-function FilaArticulo({ p, expandido, editando, onToggle, onEditar, onCambio }) {
+function FilaArticulo({ p, expandido, editando, categoriasExistentes, onToggle, onEditar, onCambio, onExito }) {
+  // El vinculo con Mi tienda cuenta igual que uno de competencia - un
+  // articulo puede tener SOLO competencia vinculada (para comparar precios
+  // entre ellas sin tener el propio todavia) y eso ya cuenta como vinculado.
+  const totalVinculados = p.competencia.length + (p.vinculos_propios || []).length;
   return (
     <div>
       <div className="w-full flex items-center hover:bg-gray-50">
@@ -193,7 +210,7 @@ function FilaArticulo({ p, expandido, editando, onToggle, onEditar, onCambio }) 
           <div className="flex items-center gap-3 shrink-0 ml-3">
             <p className="font-medium">{formatoMoneda(p.tu_precio)}</p>
             <span className="text-xs text-coteja-azul-700">
-              {p.competencia.length} vinculado{p.competencia.length !== 1 ? 's' : ''} {expandido ? '▲' : '▼'}
+              {totalVinculados} vinculado{totalVinculados !== 1 ? 's' : ''} {expandido ? '▲' : '▼'}
             </span>
           </div>
         </button>
@@ -205,7 +222,15 @@ function FilaArticulo({ p, expandido, editando, onToggle, onEditar, onCambio }) 
           ✎
         </button>
       </div>
-      {editando && <EditorArticulo articulo={p} onCerrar={onEditar} onCambio={onCambio} />}
+      {editando && (
+        <EditorArticulo
+          articulo={p}
+          categoriasExistentes={categoriasExistentes}
+          onCerrar={onEditar}
+          onCambio={onCambio}
+          onExito={onExito}
+        />
+      )}
       {expandido && <VinculosDeArticulo articulo={p} onCambio={onCambio} />}
     </div>
   );
@@ -223,6 +248,7 @@ export default function ProductosPropios() {
   const [orden, setOrden] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [toast, setToast] = useState('');
 
   async function cargar() {
     const panel = await api.get('/api/panel/' + marcaActualId);
@@ -233,21 +259,19 @@ export default function ProductosPropios() {
     cargar();
   }, [marcaActualId]);
 
-  const categoriasSugeridas = useMemo(() => {
-    // Como mucho un par de sugerencias (la que matchea por el nombre +
-    // la ultima que se uso) para que el cuadro no crezca sin limite con el
-    // tiempo - el resto se puede escribir a mano en el campo de texto.
-    const sugerida = sugerirCategoria(nombre);
-    const ultimaUsada = productos && productos.length > 0 ? productos[productos.length - 1].categoria : null;
-    const lista = [sugerida, ultimaUsada].filter(Boolean);
-    return [...new Set(lista)].slice(0, MAX_SUGERENCIAS);
-  }, [nombre, productos]);
+  const categoriasExistentes = useMemo(
+    () => [...new Set((productos || []).map((p) => p.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [productos]
+  );
 
   function onNombreChange(valor) {
     setNombre(valor);
+    // Solo autocompleta con una categoria que YA EXISTE - si la sugerencia
+    // fuera una categoria nueva, dejarla puesta sin que el usuario la haya
+    // confirmado terminaria creandola en silencio al guardar.
     if (!categoriaTocadaAMano) {
       const sugerida = sugerirCategoria(valor);
-      if (sugerida) setCategoria(sugerida);
+      if (sugerida && categoriasExistentes.includes(sugerida)) setCategoria(sugerida);
     }
   }
 
@@ -262,11 +286,13 @@ export default function ProductosPropios() {
         categoria: categoria || null,
         orden: orden === '' ? null : Number(orden),
       });
+      const categoriaNueva = categoria && !categoriasExistentes.includes(categoria);
       setNombre('');
       setCategoria('');
       setCategoriaTocadaAMano(false);
       setOrden('');
       await cargar();
+      setToast(categoriaNueva ? 'Artículo cargado. Categoría "' + categoria + '" creada.' : 'Artículo cargado.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -310,15 +336,10 @@ export default function ProductosPropios() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Categoría (opcional)</label>
-            <input
-              value={categoria}
-              onChange={(e) => { setCategoria(e.target.value); setCategoriaTocadaAMano(true); }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
-            />
-            <PillsCategoria
+            <SelectorCategoria
               valor={categoria}
               onChange={(v) => { setCategoria(v); setCategoriaTocadaAMano(true); }}
-              sugerencias={categoriasSugeridas}
+              categoriasExistentes={categoriasExistentes}
             />
           </div>
           <div>
@@ -370,9 +391,11 @@ export default function ProductosPropios() {
                     p={p}
                     expandido={expandidoId === p.id}
                     editando={editandoId === p.id}
+                    categoriasExistentes={categoriasExistentes}
                     onToggle={() => setExpandidoId((v) => (v === p.id ? null : p.id))}
                     onEditar={() => setEditandoId((v) => (v === p.id ? null : p.id))}
                     onCambio={cargar}
+                    onExito={setToast}
                   />
                 ))}
               </div>
@@ -384,6 +407,8 @@ export default function ProductosPropios() {
       {productos != null && productos.length > 0 && (
         <Leyenda>Los precios que requieran actualización manual se tienen que realizar desde la tienda.</Leyenda>
       )}
+
+      {toast && <Toast mensaje={toast} onCerrar={() => setToast('')} />}
     </div>
   );
 }

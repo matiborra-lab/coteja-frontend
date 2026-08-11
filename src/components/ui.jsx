@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { logoDePlataforma } from '../utils/plataformaLogos';
 
 // Miniatura de la plataforma de una tienda de competencia (FUDO, Cucina
@@ -81,6 +81,28 @@ export function Leyenda({ children }) {
       <span className="shrink-0 leading-none">ⓘ</span>
       <span>{children}</span>
     </p>
+  );
+}
+
+// Confirmacion de una accion que ya se completo (guardar, crear) - a
+// diferencia del Modal, no bloquea la pantalla: se puede seguir navegando
+// mientras esta visible. Se cierra sola a los 4s o al tocarla.
+export function Toast({ mensaje, onCerrar }) {
+  useEffect(() => {
+    const id = setTimeout(onCerrar, 4000);
+    return () => clearTimeout(id);
+  }, [mensaje, onCerrar]);
+
+  return (
+    <div
+      onClick={onCerrar}
+      className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-coteja-verde-50/90 backdrop-blur-sm border border-coteja-verde-300 text-coteja-verde-900 text-sm font-medium px-4 py-3 rounded-lg shadow-lg cursor-pointer max-w-sm"
+    >
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="shrink-0 text-coteja-verde-700">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0l4-4z" clipRule="evenodd" />
+      </svg>
+      <span>{mensaje}</span>
+    </div>
   );
 }
 

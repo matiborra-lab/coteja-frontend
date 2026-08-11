@@ -256,9 +256,12 @@ export default function Panel() {
     return [...mapa.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productos]);
 
+  // Sin sort propio a proposito: "productos" ya viene ordenado por el
+  // backend segun el orden de visualizacion que carga el cliente (o
+  // alfabetico si no cargo ninguno) - se respeta el mismo orden aca.
   const productosDisponibles = useMemo(() => {
     if (!productos) return [];
-    return [...productos].map((p) => ({ id: p.id, nombre: p.nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    return productos.map((p) => ({ id: p.id, nombre: p.nombre }));
   }, [productos]);
 
   function alternar(lista, setLista, valor) {

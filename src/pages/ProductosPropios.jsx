@@ -98,21 +98,114 @@ function VinculosDeArticulo({ articulo, onCambio }) {
   );
 }
 
-function FilaArticulo({ p, expandido, onToggle, onCambio }) {
+// Ayuda del campo "Orden": el mismo texto se usa aca y en el alta, asi que
+// vive en una constante para no repetirlo distinto en cada lado.
+const AYUDA_ORDEN =
+  'Define en qué posición aparece este artículo en el panel, las alertas y los reportes - ' +
+  'el mismo orden se respeta en todas las pantallas y en los mails. Admite números negativos y ' +
+  'positivos: el menor va primero (ej: orden 1 antes que orden 2). Si lo dejás vacío, se ordena ' +
+  'alfabéticamente.';
+
+function EditorArticulo({ articulo, onCerrar, onCambio }) {
+  const [nombre, setNombre] = useState(articulo.nombre);
+  const [categoria, setCategoria] = useState(articulo.categoria || '');
+  const [orden, setOrden] = useState(articulo.orden ?? '');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  async function guardar(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    setError('');
+    setGuardando(true);
+    try {
+      await api.patch('/api/productos-propios/' + articulo.id, {
+        nombre,
+        categoria: categoria || null,
+        orden: orden === '' ? null : Number(orden),
+      });
+      onCerrar();
+      onCambio();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={guardar} className="px-4 pb-4 pt-1 space-y-2 bg-gray-50 border-t border-gray-100">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
+          <input
+            required
+            autoFocus
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Categoría</label>
+          <input
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            placeholder="Sin categoría"
+            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+        <div>
+          <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1">
+            Orden (opcional)
+            <span className="text-gray-400 cursor-help" title={AYUDA_ORDEN}>ⓘ</span>
+          </label>
+          <input
+            type="number"
+            step="1"
+            value={orden}
+            onChange={(e) => setOrden(e.target.value)}
+            placeholder="Alfabético"
+            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={guardando} className="text-xs bg-coteja-azul-700 hover:bg-coteja-azul-800 disabled:opacity-50 text-white font-medium rounded-lg px-3 py-1.5">
+          {guardando ? 'Guardando...' : 'Guardar'}
+        </button>
+        <button type="button" onClick={onCerrar} className="text-xs text-gray-500 hover:underline">Cancelar</button>
+      </div>
+    </form>
+  );
+}
+
+function FilaArticulo({ p, expandido, editando, onToggle, onEditar, onCambio }) {
   return (
     <div>
-      <button
-        onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between text-sm text-left hover:bg-gray-50"
-      >
-        <p className="font-medium text-gray-900">{p.nombre}</p>
-        <div className="flex items-center gap-3">
-          <p className="font-medium">{formatoMoneda(p.tu_precio)}</p>
-          <span className="text-xs text-coteja-azul-700">
-            {p.competencia.length} vinculado{p.competencia.length !== 1 ? 's' : ''} {expandido ? '▲' : '▼'}
-          </span>
-        </div>
-      </button>
+      <div className="w-full flex items-center hover:bg-gray-50">
+        <button
+          onClick={onToggle}
+          className="flex-1 min-w-0 p-4 flex items-center justify-between text-sm text-left"
+        >
+          <p className="font-medium text-gray-900 truncate">{p.nombre}</p>
+          <div className="flex items-center gap-3 shrink-0 ml-3">
+            <p className="font-medium">{formatoMoneda(p.tu_precio)}</p>
+            <span className="text-xs text-coteja-azul-700">
+              {p.competencia.length} vinculado{p.competencia.length !== 1 ? 's' : ''} {expandido ? '▲' : '▼'}
+            </span>
+          </div>
+        </button>
+        <button
+          onClick={onEditar}
+          title="Editar artículo"
+          className="px-3 self-stretch text-gray-400 hover:text-coteja-azul-700 shrink-0"
+        >
+          ✎
+        </button>
+      </div>
+      {editando && <EditorArticulo articulo={p} onCerrar={onEditar} onCambio={onCambio} />}
       {expandido && <VinculosDeArticulo articulo={p} onCambio={onCambio} />}
     </div>
   );
@@ -123,9 +216,11 @@ export default function ProductosPropios() {
   const [productos, setProductos] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [expandidoId, setExpandidoId] = useState(null);
+  const [editandoId, setEditandoId] = useState(null);
   const [nombre, setNombre] = useState('');
   const [categoria, setCategoria] = useState('');
   const [categoriaTocadaAMano, setCategoriaTocadaAMano] = useState(false);
+  const [orden, setOrden] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
@@ -165,10 +260,12 @@ export default function ProductosPropios() {
         marca_id: marcaActualId,
         nombre,
         categoria: categoria || null,
+        orden: orden === '' ? null : Number(orden),
       });
       setNombre('');
       setCategoria('');
       setCategoriaTocadaAMano(false);
+      setOrden('');
       await cargar();
     } catch (err) {
       setError(err.message);
@@ -201,7 +298,7 @@ export default function ProductosPropios() {
 
       <form onSubmit={onSubmit} className="bg-white rounded-xl shadow p-4 space-y-3">
         <h2 className="font-medium text-gray-900">Nuevo artículo a cotejar</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">¿Con qué nombre lo vas a cotejar?</label>
             <input
@@ -222,6 +319,20 @@ export default function ProductosPropios() {
               valor={categoria}
               onChange={(v) => { setCategoria(v); setCategoriaTocadaAMano(true); }}
               sugerencias={categoriasSugeridas}
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+              Orden (opcional)
+              <span className="text-gray-400 cursor-help" title={AYUDA_ORDEN}>ⓘ</span>
+            </label>
+            <input
+              type="number"
+              step="1"
+              value={orden}
+              onChange={(e) => setOrden(e.target.value)}
+              placeholder="Alfabético"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
           </div>
         </div>
@@ -258,7 +369,9 @@ export default function ProductosPropios() {
                     key={p.id}
                     p={p}
                     expandido={expandidoId === p.id}
+                    editando={editandoId === p.id}
                     onToggle={() => setExpandidoId((v) => (v === p.id ? null : p.id))}
+                    onEditar={() => setEditandoId((v) => (v === p.id ? null : p.id))}
                     onCambio={cargar}
                   />
                 ))}

@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { Campo, Boton, Modal, Leyenda, LogoPlataforma } from '../components/ui';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { detectarPlataforma, esCucinaLink } from '../utils/plataformas';
+import { sugerirCategoria } from '../utils/categorias';
 
 const NUEVO_ARTICULO = '__nuevo__';
 const NUEVO_TIPO = '__nuevo_tipo__';
@@ -13,6 +14,15 @@ const NUEVO_TIPO = '__nuevo_tipo__';
 // vino en el item (cargado a mano o leido de la carta), no algo que el
 // backend vaya a scrapear de nuevo al confirmar el vinculo.
 const SISTEMAS_SIN_SCRAPING = ['MANUAL', 'MAPEO_IA'];
+
+function leerComoDataUrl(archivo) {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onload = () => resolve(lector.result);
+    lector.onerror = () => reject(new Error('No se pudo leer "' + archivo.name + '"'));
+    lector.readAsDataURL(archivo);
+  });
+}
 
 function SelectorTipo({ valor, onChange, tiposExistentes }) {
   const [creandoNuevo, setCreandoNuevo] = useState(false);
@@ -51,6 +61,7 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
   const [url, setUrl] = useState('');
   const [urlTienda, setUrlTienda] = useState('');
   const [tipo, setTipo] = useState('');
+  const [archivos, setArchivos] = useState([]); // fotos/PDF opcionales, solo si no hay link
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [resultado, setResultado] = useState(null); // feedback post-alta cuando la plataforma no se reconoce
@@ -63,22 +74,46 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
       // Sin URL (el cliente prefiere subir la carta en vez de pegar un link)
       // se manda DESCONOCIDA directo - ver POST /api/competidores en el backend.
       const plataforma = url ? (detectarPlataforma(url) || 'DESCONOCIDA') : 'DESCONOCIDA';
+      // Si es Cucina Link y no cargaron un link de sucursal aparte, se usa
+      // el mismo link de la tienda: en la gran mayoria de los casos ES el
+      // link de sucursal (sirve para la misma cookie de sesion), asi que
+      // pedirlo aparte solo hace falta cuando de verdad es distinto.
+      const urlTiendaFinal = urlTienda || (esCucinaLink(url) ? url : '');
       const data = await api.post('/api/competidores', {
         marca_id: marcaId,
         nombre,
         url: url || null,
         plataforma,
-        url_tienda: urlTienda || null,
+        url_tienda: urlTiendaFinal || null,
         tipo: esPropia ? null : (tipo || null),
         es_propia: !!esPropia,
       });
+
+      // Sin link, si cargaron fotos/PDF de la carta se leen ya mismo aca -
+      // antes había que guardar, buscar la tienda recien creada en la lista,
+      // entrar, e ir a la pestaña Productos para recien ahi subirlas.
+      let itemsLeidos = null;
+      if (data.plataforma === 'DESCONOCIDA' && archivos.length > 0) {
+        try {
+          const dataUrls = await Promise.all(archivos.map(leerComoDataUrl));
+          const subida = await api.post('/api/competidores/' + data.id + '/carta-subida', { archivos: dataUrls });
+          itemsLeidos = subida.items.length;
+        } catch (err) {
+          // La tienda ya se creo - no tiene sentido perder el alta por un
+          // problema puntual leyendo las fotos, solo se avisa y se puede
+          // reintentar la subida desde adentro de la tienda.
+          setError('Se creó la tienda, pero no se pudo leer lo que subiste: ' + err.message);
+        }
+      }
+
       if (data.plataforma === 'DESCONOCIDA') {
-        setResultado(data);
+        setResultado({ ...data, itemsLeidos });
       } else {
         setNombre('');
         setUrl('');
         setUrlTienda('');
         setTipo('');
+        setArchivos([]);
         onAgregado();
       }
     } catch (err) {
@@ -91,7 +126,12 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
   if (resultado) {
     return (
       <div className="space-y-3 bg-gray-50 rounded-lg p-3">
-        {resultado.itemsImportados > 0 ? (
+        {resultado.itemsLeidos > 0 ? (
+          <Leyenda>
+            Se agregó "{resultado.nombre}" y se leyeron <strong>{resultado.itemsLeidos} productos</strong> de la carta que subiste.
+            Entrá a la tienda para revisarlos y vincularlos con tus artículos.
+          </Leyenda>
+        ) : resultado.itemsImportados > 0 ? (
           <Leyenda>
             Se agregó "{resultado.nombre}" y se detectaron <strong>{resultado.itemsImportados} productos</strong> automáticamente.
             Esta plataforma no está oficialmente integrada, así que esos precios son una foto del momento y no se van a
@@ -103,7 +143,7 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
             Entrá a la tienda para subir fotos o un PDF de la carta y leerla con IA.
           </Leyenda>
         )}
-        <Boton onClick={() => { setResultado(null); setNombre(''); setUrl(''); setUrlTienda(''); setTipo(''); onAgregado(); }}>
+        <Boton onClick={() => { setResultado(null); setNombre(''); setUrl(''); setUrlTienda(''); setTipo(''); setArchivos([]); onAgregado(); }}>
           Listo
         </Boton>
       </div>
@@ -125,22 +165,37 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
       <Campo label="Link de la tienda virtual" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
 
       {esCucinaLink(url) && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-          <p className="text-xs text-amber-800">
-            Este link es de Cucina Link, que a veces necesita también el link de la sucursal para poder leer el precio.
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+          <p className="text-xs text-gray-500">
+            Detectamos Cucina Link. Por lo general no hace falta nada más - completá esto solo si el link de arriba
+            no corresponde a esta sucursal en particular (ej: cadenas con un link por sucursal).
             Ej: <span className="font-mono">https://cucina.link/mi-local/sucursal-centro</span>
           </p>
-          <Campo label="URL de sucursal" value={urlTienda} onChange={(e) => setUrlTienda(e.target.value)} />
+          <Campo label="URL de sucursal (opcional)" value={urlTienda} onChange={(e) => setUrlTienda(e.target.value)} placeholder={url || 'https://...'} />
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-gray-400">
-        <div className="flex-1 h-px bg-gray-200" />
-        o
-        <div className="flex-1 h-px bg-gray-200" />
-      </div>
+      {!url.trim() && (
+        <>
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex-1 h-px bg-gray-200" />
+            o
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
 
-      <Leyenda>Subí fotos o un PDF de la carta (esto se hace después de guardar, entrando a la tienda) y la leemos con IA.</Leyenda>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Subí fotos o un PDF de la carta (opcional)</label>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              onChange={(e) => setArchivos([...e.target.files])}
+              className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-coteja-azul-50 file:text-coteja-azul-700 file:text-sm file:font-medium hover:file:bg-coteja-azul-100"
+            />
+            <Leyenda>La leemos con IA apenas guardes y va a quedar lista para revisar y vincular con tus artículos.</Leyenda>
+          </div>
+        </>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
@@ -192,7 +247,7 @@ function VincularSelect({ producto, productosPropios, onVinculado }) {
       const articulo = await api.post('/api/productos-propios', {
         marca_id: producto.marca_id_hint,
         nombre: nombreNuevo,
-        categoria: null,
+        categoria: sugerirCategoria(nombreNuevo) || null,
       });
       await vincularCon(articulo.id);
       setCreandoArticulo(false);
@@ -381,15 +436,6 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
     }
   }
 
-  function leerComoDataUrl(archivo) {
-    return new Promise((resolve, reject) => {
-      const lector = new FileReader();
-      lector.onload = () => resolve(lector.result);
-      lector.onerror = () => reject(new Error('No se pudo leer "' + archivo.name + '"'));
-      lector.readAsDataURL(archivo);
-    });
-  }
-
   // Distinto de "escanear": esto no cambia "estado" a 'error' si falla, asi
   // el input de archivos sigue disponible para reintentar (a diferencia de
   // un link roto, ac lo unico que se puede hacer es volver a intentar con
@@ -523,10 +569,15 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
 
       let articuloId = vincularCon ? Number(vincularCon) : null;
       if (creandoArticulo) {
+        // La categoria del producto tal como aparece en la carta de la
+        // competencia (seleccionado.categoria) es un dato mas confiable que
+        // adivinar por nombre - es la que ya se usa para agrupar el mapeo
+        // en pantalla (ver "grupos" mas abajo), asi que el articulo nuevo
+        // arranca clasificado igual en vez de quedar sin categoria.
         const articulo = await api.post('/api/productos-propios', {
           marca_id: tienda.marca_id,
           nombre: nombreNuevo,
-          categoria: null,
+          categoria: seleccionado.categoria || sugerirCategoria(nombreNuevo) || null,
         });
         articuloId = articulo.id;
       }
@@ -881,7 +932,93 @@ function PrecioEditableProducto({ producto, onGuardado }) {
   );
 }
 
-function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlobal }) {
+// Editar el link/plataforma/tipo de una tienda ya cargada - mismos campos y
+// misma logica de deteccion de plataforma que FormAgregarTienda (alta), asi
+// que reeditar el link es equivalente a "recargar" el competidor de cero.
+// No toca los productos ya vinculados: cada uno sigue leyendo con su propio
+// sistema/url/parametro, esto solo cambia de que plataforma sale "Ver carta
+// completa" (CartaCompleta) de aca en mas.
+function TabConfiguracion({ tienda, tiposExistentes, onGuardado }) {
+  const [nombre, setNombre] = useState(tienda.nombre);
+  const [url, setUrl] = useState(tienda.url || '');
+  const [urlTienda, setUrlTienda] = useState(tienda.url_tienda || '');
+  const [tipo, setTipo] = useState(tienda.tipo || '');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  const plataformaNueva = url.trim() ? (detectarPlataforma(url) || 'DESCONOCIDA') : 'DESCONOCIDA';
+  // Solo avisa cuando el cambio EMPEORA la situacion (tenia una plataforma
+  // reconocida y deja de tenerla) - si ya era manual, no hay nada nuevo que
+  // advertir.
+  const pasaAManual = tienda.plataforma !== 'DESCONOCIDA' && plataformaNueva === 'DESCONOCIDA';
+
+  async function guardar(e) {
+    e.preventDefault();
+    setError('');
+    setGuardando(true);
+    try {
+      const urlTiendaFinal = urlTienda || (esCucinaLink(url) ? url : '');
+      const body = {
+        nombre,
+        url: url || null,
+        plataforma: plataformaNueva,
+        url_tienda: urlTiendaFinal || null,
+      };
+      if (!tienda.es_propia) body.tipo = tipo || null;
+      const actualizado = await api.patch('/api/competidores/' + tienda.id, body);
+      onGuardado(actualizado);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={guardar} className="space-y-3">
+      <Campo label="Nombre" required value={nombre} onChange={(e) => setNombre(e.target.value)} />
+
+      {!tienda.es_propia && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+          <SelectorTipo valor={tipo} onChange={setTipo} tiposExistentes={tiposExistentes} />
+        </div>
+      )}
+
+      <div>
+        <Campo label="Link de la tienda virtual" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+        <p className="text-xs text-gray-500 mt-1">
+          Plataforma detectada: <span className="font-medium text-gray-700">{plataformaNueva === 'DESCONOCIDA' ? 'ninguna (carga manual)' : plataformaNueva}</span>
+        </p>
+      </div>
+
+      {esCucinaLink(url) && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+          <p className="text-xs text-gray-500">
+            Detectamos Cucina Link. Por lo general no hace falta nada más - completá esto solo si el link de arriba
+            no corresponde a esta sucursal en particular (ej: cadenas con un link por sucursal).
+          </p>
+          <Campo label="URL de sucursal (opcional)" value={urlTienda} onChange={(e) => setUrlTienda(e.target.value)} placeholder={url || 'https://...'} />
+        </div>
+      )}
+
+      {pasaAManual && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-xs text-amber-800">
+            Si guardás sin un link reconocido, esta tienda pasa a carga manual (fotos/PDF) - los productos que se
+            venían actualizando solos desde acá pueden dejar de recibir precios nuevos hasta que caigas en una
+            plataforma reconocida de nuevo. Los vínculos con tus artículos no se pierden.
+          </p>
+        </div>
+      )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <Boton type="submit" cargando={guardando}>{guardando ? 'Guardando...' : 'Guardar cambios'}</Boton>
+    </form>
+  );
+}
+
+function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCerrar, onCambioGlobal, onTiendaActualizada }) {
   const [tab, setTab] = useState('productos');
   const [productos, setProductos] = useState(null);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -938,6 +1075,12 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
           >
             Artículos vinculados {vinculados.length > 0 && '(' + vinculados.length + ')'}
           </button>
+          <button
+            onClick={() => setTab('config')}
+            className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'config' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
+          >
+            Configuración
+          </button>
         </div>
 
         {tab === 'productos' ? (
@@ -991,7 +1134,7 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
               </ul>
             )}
           </div>
-        ) : (
+        ) : tab === 'vinculados' ? (
           <div>
             {vinculados.length === 0 ? (
               <p className="text-sm text-gray-400">Todavía no vinculaste ningún producto de esta tienda con un artículo.</p>
@@ -1015,6 +1158,8 @@ function TiendaModal({ tienda, marcaId, productosPropios, onCerrar, onCambioGlob
               </ul>
             )}
           </div>
+        ) : (
+          <TabConfiguracion tienda={tienda} tiposExistentes={tiposExistentes} onGuardado={onTiendaActualizada} />
         )}
       </div>
     </Modal>
@@ -1070,6 +1215,10 @@ export default function Competidores() {
   const [mostrarFormMiTienda, setMostrarFormMiTienda] = useState(false);
   const [tiendaAbierta, setTiendaAbierta] = useState(null);
   const [busqueda, setBusqueda] = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [filtroTipos, setFiltroTipos] = useState([]);
+  const [filtroPlataformas, setFiltroPlataformas] = useState([]);
+  const [filtroCompetidores, setFiltroCompetidores] = useState([]);
 
   async function cargar() {
     const [tiendasData, panel] = await Promise.all([
@@ -1106,12 +1255,27 @@ export default function Competidores() {
     () => [...new Set(competidores.map((c) => c.tipo).filter(Boolean))],
     [competidores]
   );
+  const plataformasDisponibles = useMemo(
+    () => [...new Set(competidores.map((c) => c.plataforma).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [competidores]
+  );
+
+  function alternar(lista, setLista, valor) {
+    setLista(lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]);
+  }
+
+  const filtrosActivos = filtroTipos.length + filtroPlataformas.length + filtroCompetidores.length;
+
   const competidoresFiltrados = useMemo(
-    () => competidores.filter((c) =>
-      c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      c.plataforma.toLowerCase().includes(busqueda.toLowerCase())
-    ),
-    [competidores, busqueda]
+    () => competidores.filter((c) => {
+      const q = busqueda.toLowerCase();
+      if (q && !(c.nombre.toLowerCase().includes(q) || c.plataforma.toLowerCase().includes(q))) return false;
+      if (filtroTipos.length > 0 && !filtroTipos.includes(c.tipo)) return false;
+      if (filtroPlataformas.length > 0 && !filtroPlataformas.includes(c.plataforma)) return false;
+      if (filtroCompetidores.length > 0 && !filtroCompetidores.includes(c.id)) return false;
+      return true;
+    }),
+    [competidores, busqueda, filtroTipos, filtroPlataformas, filtroCompetidores]
   );
 
   return (
@@ -1160,13 +1324,109 @@ export default function Competidores() {
       )}
 
       {competidores.length > 0 && (
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o plataforma..."
-          className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre o plataforma..."
+            className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+          />
+          {(tiposExistentes.length > 0 || plataformasDisponibles.length > 0 || competidores.length > 0) && (
+            <button
+              type="button"
+              onClick={() => setMostrarFiltros((v) => !v)}
+              className={
+                'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
+                (filtrosActivos > 0 ? 'border-coteja-azul-300 bg-coteja-azul-50 text-coteja-azul-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+              }
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M2 4a1 1 0 011-1h14a1 1 0 01.8 1.6l-5.8 7.73V17a1 1 0 01-1.45.9l-3-1.5A1 1 0 017 15.5v-3.17L1.2 4.6A1 1 0 012 4z" />
+              </svg>
+              Filtros
+              {filtrosActivos > 0 && (
+                <span className="bg-coteja-azul-800 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                  {filtrosActivos}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {competidores.length > 0 && mostrarFiltros && (
+        <div className="bg-white rounded-xl shadow p-3 space-y-3">
+          {tiposExistentes.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Tipo</p>
+              <div className="flex flex-wrap gap-1.5">
+                {tiposExistentes.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => alternar(filtroTipos, setFiltroTipos, t)}
+                    className={
+                      'text-xs px-2.5 py-1 rounded-full border ' +
+                      (filtroTipos.includes(t) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                    }
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {plataformasDisponibles.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Plataforma</p>
+              <div className="flex flex-wrap gap-1.5">
+                {plataformasDisponibles.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => alternar(filtroPlataformas, setFiltroPlataformas, p)}
+                    className={
+                      'text-xs px-2.5 py-1 rounded-full border ' +
+                      (filtroPlataformas.includes(p) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                    }
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {competidores.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Competencia</p>
+              <div className="flex flex-wrap gap-1.5">
+                {competidores.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => alternar(filtroCompetidores, setFiltroCompetidores, c.id)}
+                    className={
+                      'text-xs px-2.5 py-1 rounded-full border ' +
+                      (filtroCompetidores.includes(c.id) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                    }
+                  >
+                    {c.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {filtrosActivos > 0 && (
+            <button
+              type="button"
+              onClick={() => { setFiltroTipos([]); setFiltroPlataformas([]); setFiltroCompetidores([]); }}
+              className="text-xs text-coteja-azul-700 hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
       )}
 
       {tiendas == null ? (
@@ -1190,9 +1450,11 @@ export default function Competidores() {
         <TiendaModal
           tienda={tiendaAbierta}
           marcaId={marcaActualId}
+          tiposExistentes={tiposExistentes}
           productosPropios={productosPropios}
           onCerrar={() => setTiendaAbierta(null)}
           onCambioGlobal={cargar}
+          onTiendaActualizada={(actualizada) => { setTiendaAbierta(actualizada); cargar(); }}
         />
       )}
     </div>

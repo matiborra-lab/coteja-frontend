@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import { Campo, Boton, Modal, Leyenda } from '../components/ui';
+import { suscribirsePush } from '../utils/push';
 
 const TIPOS_ALERTA = [
   { value: 'POSICIONAMIENTO', label: 'Reporte general de posicionamiento' },
@@ -310,6 +311,9 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
   const [condicion, setCondicion] = useState(alerta?.condicion || 'CUALQUIER_CAMBIO');
   const [umbral, setUmbral] = useState(alerta?.condicion_umbral_porcentaje ?? '');
   const [modalidadEnvio, setModalidadEnvio] = useState(alerta?.modalidad_envio || 'AUTOMATICO');
+  const [notificacionPush, setNotificacionPush] = useState(alerta?.notificacion_push || false);
+  const [pushError, setPushError] = useState('');
+  const [suscribiendoPush, setSuscribiendoPush] = useState(false);
   const [frecuencia, setFrecuencia] = useState(alerta?.frecuencia_programada || 'SEMANAL');
   const [horaEnvio, setHoraEnvio] = useState(alerta?.hora_envio?.slice(0, 5) || '09:00');
   const [diasSemana, setDiasSemana] = useState(alerta?.dias_semana || [1]);
@@ -346,6 +350,25 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
 
   const esProgramada = tipo === 'POSICIONAMIENTO' || (tipo === 'CAMBIOS_COMPETENCIA' && modalidadEnvio === 'PROGRAMADO');
 
+  // Tildar la casilla registra el dispositivo actual (pide permiso al
+  // navegador) - un dispositivo ya suscripto queda disponible para
+  // cualquier otra alerta con push activado, no hace falta repetirlo.
+  // Destildar solo apaga el push de ESTA alerta, no desuscribe el
+  // dispositivo (podria estar en uso por otra alerta).
+  async function onNotificacionPushChange(activar) {
+    setPushError('');
+    if (!activar) { setNotificacionPush(false); return; }
+    setSuscribiendoPush(true);
+    try {
+      await suscribirsePush();
+      setNotificacionPush(true);
+    } catch (err) {
+      setPushError(err.message);
+    } finally {
+      setSuscribiendoPush(false);
+    }
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     if (marcasSeleccionadas.length === 0) { setError('Elegí al menos una marca'); return; }
@@ -358,6 +381,7 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
         condicion: tipo === 'CAMBIOS_COMPETENCIA' ? condicion : null,
         condicion_umbral_porcentaje: tipo === 'CAMBIOS_COMPETENCIA' && condicion === 'VARIACION_PORCENTAJE' ? Number(umbral) : null,
         modalidad_envio: tipo === 'CAMBIOS_COMPETENCIA' ? modalidadEnvio : null,
+        notificacion_push: tipo === 'CAMBIOS_COMPETENCIA' && modalidadEnvio === 'AUTOMATICO' ? notificacionPush : false,
         frecuencia_programada: esProgramada ? frecuencia : null,
         hora_envio: esProgramada ? horaEnvio : null,
         dias_semana: esProgramada && frecuencia === 'SEMANAL' ? diasSemana : null,
@@ -506,10 +530,23 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
               Enviar automáticamente al detectar cambios
             </label>
             {modalidadEnvio === 'AUTOMATICO' && (
-              <Leyenda>
-                Para evitar notificaciones incompletas, COTEJA agrupa durante aproximadamente 60 minutos los cambios detectados
-                antes de enviar el aviso.
-              </Leyenda>
+              <>
+                <Leyenda>
+                  Para evitar notificaciones incompletas, COTEJA agrupa durante aproximadamente 60 minutos los cambios detectados
+                  antes de enviar el aviso.
+                </Leyenda>
+                <label className="flex items-center gap-2 text-sm text-gray-700 pl-6">
+                  <input
+                    type="checkbox"
+                    checked={notificacionPush}
+                    disabled={suscribiendoPush}
+                    onChange={(e) => onNotificacionPushChange(e.target.checked)}
+                  />
+                  Enviar notificación push a tus dispositivos móviles vinculados
+                </label>
+                {suscribiendoPush && <p className="text-xs text-gray-400 pl-6">Activando notificaciones...</p>}
+                {pushError && <p className="text-xs text-red-600 pl-6">{pushError}</p>}
+              </>
             )}
             <label className="flex items-center gap-2 text-sm">
               <input type="radio" checked={modalidadEnvio === 'PROGRAMADO'} onChange={() => setModalidadEnvio('PROGRAMADO')} />

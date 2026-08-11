@@ -38,5 +38,5 @@ export const api = {
   get: (ruta, opciones) => pedido('GET', ruta, null, opciones),
   post: (ruta, body, opciones) => pedido('POST', ruta, body, opciones),
   patch: (ruta, body, opciones) => pedido('PATCH', ruta, body, opciones),
-  del: (ruta, opciones) => pedido('DELETE', ruta, null, opciones),
+  del: (ruta, body, opciones) => pedido('DELETE', ruta, body, opciones),
 };

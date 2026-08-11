@@ -20,6 +20,26 @@ const COLOR_MI_TIENDA = '#011c3b';
 const COLOR_COMPETENCIA = '#9ca3af';
 const COLOR_PROMEDIO = '#02662e';
 
+// Anchos fijos de las columnas que quedan "congeladas" (position: sticky)
+// en la tabla de escritorio - Categoría/Artículo/Tu precio a la izquierda,
+// Promedio/Diferencia a la derecha - mientras las columnas de competidores
+// (una por tienda, cantidad variable) scrollean por el medio. Con
+// table-layout: fixed el ancho de cada columna sale de <colgroup>, no del
+// contenido, así el offset sticky de cada celda es siempre predecible.
+const ANCHO_COL_CATEGORIA = 108;
+const ANCHO_COL_ARTICULO = 190;
+const ANCHO_COL_TU_PRECIO = 92;
+const ANCHO_COL_COMPETIDOR = 122;
+const ANCHO_COL_PROMEDIO = 128;
+const ANCHO_COL_DIFERENCIA = 122;
+
+function estiloStickyIzq(offset, ancho) {
+  return { position: 'sticky', left: offset, width: ancho, minWidth: ancho, maxWidth: ancho };
+}
+function estiloStickyDer(offset, ancho) {
+  return { position: 'sticky', right: offset, width: ancho, minWidth: ancho, maxWidth: ancho };
+}
+
 function formatoFechaCorta(fechaISO) {
   const [, mes, dia] = fechaISO.split('-');
   return String(Number(dia)) + '/' + String(Number(mes));
@@ -212,6 +232,49 @@ function GraficoEvolucion({ productos, filtroCompetidores, marcaActualId }) {
   );
 }
 
+function Chip({ label, onRemove }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs bg-coteja-azul-50 border border-coteja-azul-300 text-coteja-azul-900 pl-2.5 pr-1.5 py-1 rounded-full">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={'Quitar filtro ' + label}
+        className="hover:bg-coteja-azul-200 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none"
+      >
+        ×
+      </button>
+    </span>
+  );
+}
+
+// Cada sección del panel de filtros se abre/cierra de forma independiente
+// (no es un acordeón exclusivo) - así se puede tener, por ejemplo,
+// "Categoría" y "Producto" abiertos al mismo tiempo.
+function SeccionFiltro({ titulo, cantidad, abierta, onToggle, children }) {
+  return (
+    <div className="border border-gray-100 rounded-lg">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-3 py-2 text-left"
+      >
+        <span className="text-xs font-semibold uppercase text-gray-500">
+          {titulo}
+          {cantidad > 0 && <span className="ml-1.5 text-coteja-azul-700">({cantidad})</span>}
+        </span>
+        <svg
+          width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+          className={'text-gray-400 transition-transform ' + (abierta ? 'rotate-180' : '')}
+        >
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {abierta && <div className="px-3 pb-3">{children}</div>}
+    </div>
+  );
+}
+
 function SeccionGraficos({ productos, filtroCompetidores, marcaActualId }) {
   return (
     <div className="space-y-4">
@@ -228,9 +291,15 @@ export default function Panel() {
   const [busqueda, setBusqueda] = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filtroCategorias, setFiltroCategorias] = useState([]);
+  const [filtroTipos, setFiltroTipos] = useState([]);
   const [filtroCompetidores, setFiltroCompetidores] = useState([]);
   const [filtroProductos, setFiltroProductos] = useState([]);
+  const [seccionesAbiertas, setSeccionesAbiertas] = useState({ categoria: false, tipo: false, competencia: false, producto: false });
   const [error, setError] = useState('');
+
+  function alternarSeccion(clave) {
+    setSeccionesAbiertas((prev) => ({ ...prev, [clave]: !prev[clave] }));
+  }
 
   useEffect(() => {
     setProductos(null);
@@ -256,6 +325,20 @@ export default function Panel() {
     return [...mapa.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [productos]);
 
+  // "Tipo" es el campo libre que ya se carga por tienda en Tiendas >
+  // Configuración (ej. "Principales"/"Cercanas") - si nadie lo cargó
+  // todavía, esta lista queda vacía y la sección ni se muestra.
+  const tiposDisponibles = useMemo(() => {
+    if (!productos) return [];
+    const set = new Set();
+    for (const p of productos) {
+      for (const c of p.competencia_por_competidor || []) {
+        if (c.competidor_tipo) set.add(c.competidor_tipo);
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [productos]);
+
   // Sin sort propio a proposito: "productos" ya viene ordenado por el
   // backend segun el orden de visualizacion que carga el cliente (o
   // alfabetico si no cargo ninguno) - se respeta el mismo orden aca.
@@ -268,6 +351,17 @@ export default function Panel() {
     setLista(lista.includes(valor) ? lista.filter((v) => v !== valor) : [...lista, valor]);
   }
 
+  // Un competidor entra en el calculo si coincide con AMBOS filtros activos
+  // (competidor puntual Y tipo) - si alguno de los dos esta vacio, no
+  // restringe por ese lado.
+  function coincideFiltroCompetencia(c) {
+    if (filtroCompetidores.length > 0 && !filtroCompetidores.includes(c.competidor_id)) return false;
+    if (filtroTipos.length > 0 && !filtroTipos.includes(c.competidor_tipo)) return false;
+    return true;
+  }
+
+  const hayFiltroCompetencia = filtroCompetidores.length > 0 || filtroTipos.length > 0;
+
   const productosFiltrados = useMemo(() => {
     if (!productos) return [];
     const q = busqueda.toLowerCase();
@@ -275,20 +369,21 @@ export default function Panel() {
       if (q && !(p.nombre.toLowerCase().includes(q) || (p.categoria || '').toLowerCase().includes(q))) return false;
       if (filtroCategorias.length > 0 && !filtroCategorias.includes(p.categoria)) return false;
       if (filtroProductos.length > 0 && !filtroProductos.includes(p.id)) return false;
-      if (filtroCompetidores.length > 0) {
-        const tieneAlguno = (p.competencia_por_competidor || []).some((c) => filtroCompetidores.includes(c.competidor_id));
+      if (hayFiltroCompetencia) {
+        const tieneAlguno = (p.competencia_por_competidor || []).some(coincideFiltroCompetencia);
         if (!tieneAlguno) return false;
       }
       return true;
     });
 
-    if (filtroCompetidores.length === 0) return filtrados;
+    if (!hayFiltroCompetencia) return filtrados;
 
-    // Con el filtro de competencia activo, "Promedio" y "Diferencia" tienen
-    // que reflejar solo a los competidores elegidos - si no, quedarian
-    // mostrando un promedio que no coincide con la unica columna visible.
+    // Con el filtro de competidor/tipo activo, "Promedio" y "Diferencia"
+    // tienen que reflejar solo a los competidores elegidos - si no,
+    // quedarian mostrando un promedio que no coincide con las columnas
+    // visibles.
     return filtrados.map((p) => {
-      const competencia = (p.competencia_por_competidor || []).filter((c) => filtroCompetidores.includes(c.competidor_id));
+      const competencia = (p.competencia_por_competidor || []).filter(coincideFiltroCompetencia);
       const promedio = competencia.length ? competencia.reduce((acc, c) => acc + c.precio_final, 0) / competencia.length : null;
       const tuPrecio = p.tu_precio != null ? Number(p.tu_precio) : null;
       const diferencia = promedio !== null && tuPrecio !== null ? tuPrecio - promedio : null;
@@ -300,7 +395,7 @@ export default function Panel() {
         diferencia_vs_promedio_porcentaje: diferencia !== null && promedio ? (diferencia / promedio) * 100 : null,
       };
     });
-  }, [productos, busqueda, filtroCategorias, filtroProductos, filtroCompetidores]);
+  }, [productos, busqueda, filtroCategorias, filtroProductos, filtroCompetidores, filtroTipos]);
 
   // Une, sin repetir, todos los competidores que aparecen vinculados en
   // algun articulo del set filtrado - se usan como columnas de la tabla en
@@ -311,16 +406,23 @@ export default function Panel() {
     const mapa = new Map();
     for (const p of productosFiltrados) {
       for (const c of p.competencia_por_competidor || []) {
-        if (filtroCompetidores.length > 0 && !filtroCompetidores.includes(c.competidor_id)) continue;
+        if (!coincideFiltroCompetencia(c)) continue;
         if (!mapa.has(c.competidor_id)) mapa.set(c.competidor_id, c.competidor_nombre);
       }
     }
     return [...mapa.entries()]
       .map(([id, nombre]) => ({ id, nombre }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [productosFiltrados, filtroCompetidores]);
+  }, [productosFiltrados, filtroCompetidores, filtroTipos]);
 
-  const filtrosActivos = filtroCategorias.length + filtroCompetidores.length + filtroProductos.length;
+  const filtrosActivos = filtroCategorias.length + filtroTipos.length + filtroCompetidores.length + filtroProductos.length;
+
+  function limpiarFiltros() {
+    setFiltroCategorias([]);
+    setFiltroTipos([]);
+    setFiltroCompetidores([]);
+    setFiltroProductos([]);
+  }
 
   if (error) return <p className="text-red-600">{error}</p>;
   if (!productos) return <p className="text-gray-400">Cargando...</p>;
@@ -368,7 +470,7 @@ export default function Panel() {
               placeholder="Buscar por nombre o categoría..."
               className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
             />
-            {(categoriasDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
+            {(categoriasDisponibles.length > 0 || tiposDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
               <button
                 type="button"
                 onClick={() => setMostrarFiltros((v) => !v)}
@@ -390,11 +492,37 @@ export default function Panel() {
             )}
           </div>
 
+          {filtrosActivos > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {filtroCategorias.map((cat) => (
+                <Chip key={'cat-' + cat} label={cat} onRemove={() => alternar(filtroCategorias, setFiltroCategorias, cat)} />
+              ))}
+              {filtroTipos.map((t) => (
+                <Chip key={'tipo-' + t} label={t} onRemove={() => alternar(filtroTipos, setFiltroTipos, t)} />
+              ))}
+              {filtroCompetidores.map((id) => {
+                const c = competidoresDisponibles.find((c) => c.id === id);
+                return <Chip key={'comp-' + id} label={c ? c.nombre : id} onRemove={() => alternar(filtroCompetidores, setFiltroCompetidores, id)} />;
+              })}
+              {filtroProductos.map((id) => {
+                const p = productosDisponibles.find((p) => p.id === id);
+                return <Chip key={'prod-' + id} label={p ? p.nombre : id} onRemove={() => alternar(filtroProductos, setFiltroProductos, id)} />;
+              })}
+              <button type="button" onClick={limpiarFiltros} className="text-xs text-gray-400 hover:text-gray-600 hover:underline">
+                Limpiar todo
+              </button>
+            </div>
+          )}
+
           {mostrarFiltros && (
-            <div className="bg-white rounded-xl shadow p-3 space-y-3">
+            <div className="bg-white rounded-xl shadow p-2 space-y-2">
               {categoriasDisponibles.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Categoría</p>
+                <SeccionFiltro
+                  titulo="Categoría"
+                  cantidad={filtroCategorias.length}
+                  abierta={seccionesAbiertas.categoria}
+                  onToggle={() => alternarSeccion('categoria')}
+                >
                   <div className="flex flex-wrap gap-1.5">
                     {categoriasDisponibles.map((cat) => (
                       <button
@@ -410,11 +538,39 @@ export default function Panel() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </SeccionFiltro>
+              )}
+              {tiposDisponibles.length > 0 && (
+                <SeccionFiltro
+                  titulo="Tipo de competencia"
+                  cantidad={filtroTipos.length}
+                  abierta={seccionesAbiertas.tipo}
+                  onToggle={() => alternarSeccion('tipo')}
+                >
+                  <div className="flex flex-wrap gap-1.5">
+                    {tiposDisponibles.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => alternar(filtroTipos, setFiltroTipos, t)}
+                        className={
+                          'text-xs px-2.5 py-1 rounded-full border ' +
+                          (filtroTipos.includes(t) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                        }
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </SeccionFiltro>
               )}
               {competidoresDisponibles.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Competencia</p>
+                <SeccionFiltro
+                  titulo="Competencia"
+                  cantidad={filtroCompetidores.length}
+                  abierta={seccionesAbiertas.competencia}
+                  onToggle={() => alternarSeccion('competencia')}
+                >
                   <div className="flex flex-wrap gap-1.5">
                     {competidoresDisponibles.map((c) => (
                       <button
@@ -430,11 +586,15 @@ export default function Panel() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </SeccionFiltro>
               )}
               {productosDisponibles.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold uppercase text-gray-400 mb-1.5">Producto</p>
+                <SeccionFiltro
+                  titulo="Producto"
+                  cantidad={filtroProductos.length}
+                  abierta={seccionesAbiertas.producto}
+                  onToggle={() => alternarSeccion('producto')}
+                >
                   <div className="flex flex-wrap gap-1.5">
                     {productosDisponibles.map((p) => (
                       <button
@@ -450,32 +610,40 @@ export default function Panel() {
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-              {filtrosActivos > 0 && (
-                <button
-                  type="button"
-                  onClick={() => { setFiltroCategorias([]); setFiltroCompetidores([]); setFiltroProductos([]); }}
-                  className="text-xs text-coteja-azul-700 hover:underline"
-                >
-                  Limpiar filtros
-                </button>
+                </SeccionFiltro>
               )}
             </div>
           )}
 
           <div className="hidden md:block bg-white rounded-xl shadow overflow-x-auto">
-            <table className="w-full text-sm min-w-[640px]">
+            <table className="text-sm" style={{ tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+              <colgroup>
+                <col style={{ width: ANCHO_COL_CATEGORIA }} />
+                <col style={{ width: ANCHO_COL_ARTICULO }} />
+                <col style={{ width: ANCHO_COL_TU_PRECIO }} />
+                {competidoresColumnas.map((col) => (
+                  <col key={col.id} style={{ width: ANCHO_COL_COMPETIDOR }} />
+                ))}
+                <col style={{ width: ANCHO_COL_PROMEDIO }} />
+                <col style={{ width: ANCHO_COL_DIFERENCIA }} />
+              </colgroup>
               <thead className="bg-gray-50 text-gray-500 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Categoría</th>
-                  <th className="px-4 py-3 font-medium">Artículo</th>
-                  <th className="px-4 py-3 font-medium">Tu precio</th>
+                  <th className="px-4 py-3 font-medium bg-gray-50 border-r border-gray-200" style={estiloStickyIzq(0, ANCHO_COL_CATEGORIA)}>Categoría</th>
+                  <th className="px-4 py-3 font-medium bg-gray-50" style={estiloStickyIzq(ANCHO_COL_CATEGORIA, ANCHO_COL_ARTICULO)}>Artículo</th>
+                  <th className="px-4 py-3 font-medium bg-gray-50 border-r border-gray-200" style={estiloStickyIzq(ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO, ANCHO_COL_TU_PRECIO)}>Tu precio</th>
                   {competidoresColumnas.map((col) => (
-                    <th key={col.id} className="px-4 py-3 font-medium whitespace-nowrap">{col.nombre}</th>
+                    <th
+                      key={col.id}
+                      className="px-4 py-3 font-medium whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={{ width: ANCHO_COL_COMPETIDOR, minWidth: ANCHO_COL_COMPETIDOR, maxWidth: ANCHO_COL_COMPETIDOR }}
+                      title={col.nombre}
+                    >
+                      {col.nombre}
+                    </th>
                   ))}
-                  <th className="px-4 py-3 font-medium">Promedio competencia</th>
-                  <th className="px-4 py-3 font-medium">Diferencia</th>
+                  <th className="px-4 py-3 font-medium bg-gray-50 border-l border-gray-200" style={estiloStickyDer(ANCHO_COL_DIFERENCIA, ANCHO_COL_PROMEDIO)}>Promedio competencia</th>
+                  <th className="px-4 py-3 font-medium bg-gray-50" style={estiloStickyDer(0, ANCHO_COL_DIFERENCIA)}>Diferencia</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -488,13 +656,34 @@ export default function Panel() {
                 ) : (
                   productosFiltrados.map((p) => (
                     <tr key={p.id}>
-                      <td className="px-4 py-3 align-top text-gray-500">{p.categoria || 'Sin categoría'}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900 align-top">{p.nombre}</td>
-                      <td className="px-4 py-3 align-top">{formatoMoneda(p.tu_precio)}</td>
+                      <td
+                        className="px-4 py-3 align-top text-gray-500 bg-white border-r border-gray-200 overflow-hidden text-ellipsis whitespace-nowrap"
+                        style={estiloStickyIzq(0, ANCHO_COL_CATEGORIA)}
+                        title={p.categoria || 'Sin categoría'}
+                      >
+                        {p.categoria || 'Sin categoría'}
+                      </td>
+                      <td
+                        className="px-4 py-3 font-medium text-gray-900 align-top bg-white overflow-hidden text-ellipsis whitespace-nowrap"
+                        style={estiloStickyIzq(ANCHO_COL_CATEGORIA, ANCHO_COL_ARTICULO)}
+                        title={p.nombre}
+                      >
+                        {p.nombre}
+                      </td>
+                      <td
+                        className="px-4 py-3 align-top font-bold text-gray-900 bg-white border-r border-gray-200"
+                        style={estiloStickyIzq(ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO, ANCHO_COL_TU_PRECIO)}
+                      >
+                        {formatoMoneda(p.tu_precio)}
+                      </td>
                       {competidoresColumnas.map((col) => {
                         const c = (p.competencia_por_competidor || []).find((c) => c.competidor_id === col.id);
                         return (
-                          <td key={col.id} className="px-4 py-3 align-top whitespace-nowrap">
+                          <td
+                            key={col.id}
+                            className="px-4 py-3 align-top whitespace-nowrap"
+                            style={{ width: ANCHO_COL_COMPETIDOR, minWidth: ANCHO_COL_COMPETIDOR, maxWidth: ANCHO_COL_COMPETIDOR }}
+                          >
                             {c ? (
                               <>
                                 {formatoMoneda(c.precio_final)}
@@ -511,8 +700,15 @@ export default function Panel() {
                           </td>
                         );
                       })}
-                      <td className="px-4 py-3 align-top font-bold">{formatoMoneda(p.promedio_competencia)}</td>
-                      <td className="px-4 py-3 align-top"><Diferencia producto={p} /></td>
+                      <td
+                        className="px-4 py-3 align-top font-bold bg-white border-l border-gray-200"
+                        style={estiloStickyDer(ANCHO_COL_DIFERENCIA, ANCHO_COL_PROMEDIO)}
+                      >
+                        {formatoMoneda(p.promedio_competencia)}
+                      </td>
+                      <td className="px-4 py-3 align-top bg-white" style={estiloStickyDer(0, ANCHO_COL_DIFERENCIA)}>
+                        <Diferencia producto={p} />
+                      </td>
                     </tr>
                   ))
                 )}
@@ -534,7 +730,7 @@ export default function Panel() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Tu precio</span>
-                    <span>{formatoMoneda(p.tu_precio)}</span>
+                    <span className="font-bold text-gray-900">{formatoMoneda(p.tu_precio)}</span>
                   </div>
                   {competidoresColumnas.map((col) => {
                     const c = (p.competencia_por_competidor || []).find((c) => c.competidor_id === col.id);

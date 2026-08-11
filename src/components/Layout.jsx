@@ -46,7 +46,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-4 h-14 flex items-center justify-between">
           {/* Mobile: solo hamburguesa + logo, para que el header nunca desborde. */}
           <div className="flex md:hidden items-center gap-3">
             <button
@@ -141,7 +141,7 @@ export default function Layout() {
 
       {verIncidencias && incidencias.length > 0 && (
         <div className="bg-amber-50 border-b border-amber-200">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-start justify-between gap-4">
+          <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-start justify-between gap-4">
             <div className="text-sm text-amber-800">
               <strong>{incidencias.length}</strong> producto{incidencias.length > 1 ? 's' : ''} de la
               competencia dej{incidencias.length > 1 ? 'aron' : 'ó'} de poder leerse:
@@ -164,7 +164,7 @@ export default function Layout() {
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-[1600px] mx-auto px-4 py-8">
         {marcaActualId || usuario.rol === 'ADMIN' ? (
           <Outlet />
         ) : (

@@ -162,35 +162,95 @@ function SelectorProgramacion({ frecuencia, horaEnvio, diasSemana, diasMes, onCh
   );
 }
 
+// Mismo patron que SelectorProductos (categoria->producto) pero
+// tipo->competidor: agrupa por competidores.tipo (la misma etiqueta libre
+// que ya se carga en Tiendas > Configuración y se usa como filtro en el
+// Panel) - un tipo entero queda dinamico (suma competidores nuevos de ese
+// tipo solos), igual que categorias_completas para productos. Los
+// competidores sin tipo cargado caen en un grupo "Sin tipo".
 function SelectorCompetidores({ competidores, value, onChange }) {
-  const modo = (!value || value.length === 0) ? 'TODOS' : 'SELECCION';
+  const modo = (value.competidores_ids.length === 0 && value.tipos_completos.length === 0) ? 'TODOS' : 'SELECCION';
+
+  const grupos = useMemo(() => {
+    const mapa = new Map();
+    for (const c of competidores) {
+      const tipo = c.tipo || 'Sin tipo';
+      if (!mapa.has(tipo)) mapa.set(tipo, []);
+      mapa.get(tipo).push(c);
+    }
+    return [...mapa.entries()];
+  }, [competidores]);
+
+  function toggleTipo(tipo, competidoresDeTipo) {
+    const yaCompleto = value.tipos_completos.includes(tipo);
+    if (yaCompleto) {
+      onChange({ ...value, tipos_completos: value.tipos_completos.filter((t) => t !== tipo) });
+    } else {
+      const idsDeTipo = competidoresDeTipo.map((c) => c.id);
+      onChange({
+        ...value,
+        tipos_completos: [...value.tipos_completos, tipo],
+        competidores_ids: value.competidores_ids.filter((id) => !idsDeTipo.includes(id)),
+      });
+    }
+  }
+
+  function toggleCompetidor(id, tipo) {
+    if (value.tipos_completos.includes(tipo)) return;
+    const yaIncluido = value.competidores_ids.includes(id);
+    onChange({
+      ...value,
+      competidores_ids: yaIncluido ? value.competidores_ids.filter((x) => x !== id) : [...value.competidores_ids, id],
+    });
+  }
+
   return (
     <div className="space-y-1.5">
       <div className="flex gap-4 text-sm">
         <label className="flex items-center gap-1.5">
-          <input type="radio" checked={modo === 'TODOS'} onChange={() => onChange([])} /> Todos los competidores
+          <input
+            type="radio"
+            checked={modo === 'TODOS'}
+            onChange={() => onChange({ competidores_ids: [], tipos_completos: [] })}
+          />
+          Todos los competidores
         </label>
         <label className="flex items-center gap-1.5">
           <input
             type="radio"
             checked={modo === 'SELECCION'}
-            onChange={() => onChange(competidores.length ? [competidores[0].id] : [])}
+            onChange={() => onChange({ ...value, competidores_ids: competidores.length ? [competidores[0].id] : [] })}
           />
           Elegir competidores
         </label>
       </div>
       {modo === 'SELECCION' && (
-        <div className="pl-1 grid grid-cols-2 gap-x-3 gap-y-1 max-h-32 overflow-y-auto">
-          {competidores.map((c) => (
-            <label key={c.id} className="flex items-center gap-1.5 text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={value.includes(c.id)}
-                onChange={() => onChange(value.includes(c.id) ? value.filter((x) => x !== c.id) : [...value, c.id])}
-              />
-              {c.nombre}
-            </label>
-          ))}
+        <div className="border border-gray-200 rounded-lg p-2 max-h-56 overflow-y-auto space-y-2">
+          {grupos.length === 0 && <p className="text-xs text-gray-400">Esta marca todavía no tiene competidores cargados.</p>}
+          {grupos.map(([tipoNombre, comps]) => {
+            const tipoCompleto = value.tipos_completos.includes(tipoNombre);
+            return (
+              <div key={tipoNombre}>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                  <input type="checkbox" checked={tipoCompleto} onChange={() => toggleTipo(tipoNombre, comps)} />
+                  {tipoNombre} <span className="text-xs text-gray-400 font-normal">(Todos)</span>
+                </label>
+                <div className="pl-5 space-y-0.5 mt-0.5">
+                  {comps.map((c) => (
+                    <label key={c.id} className="flex items-center gap-1.5 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={tipoCompleto || value.competidores_ids.includes(c.id)}
+                        disabled={tipoCompleto}
+                        onChange={() => toggleCompetidor(c.id, tipoNombre)}
+                      />
+                      {c.nombre}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -282,7 +342,7 @@ function SelectorProductos({ productosPropios, value, onChange }) {
 }
 
 function bloqueVacio() {
-  return { competidores_ids: [], modo_productos: 'TODOS', categorias_completas: [], productos_ids: [] };
+  return { competidores_ids: [], tipos_completos: [], modo_productos: 'TODOS', categorias_completas: [], productos_ids: [] };
 }
 
 // -----------------------------------------------------------------------
@@ -303,6 +363,7 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
     if (!alerta) return { [marcaActualId]: bloqueVacio() };
     return Object.fromEntries(alerta.marcas.map((m) => [m.marca_id, {
       competidores_ids: m.competidores_ids || [],
+      tipos_completos: m.tipos_completos || [],
       modo_productos: m.modo_productos || 'TODOS',
       categorias_completas: m.categorias_completas || [],
       productos_ids: m.productos_ids || [],
@@ -391,6 +452,7 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
           return {
             marca_id: id,
             competidores_ids: bloque.competidores_ids,
+            tipos_completos: bloque.tipos_completos,
             modo_productos: bloque.modo_productos,
             categorias_completas: bloque.categorias_completas,
             productos_ids: bloque.productos_ids,
@@ -500,8 +562,8 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
                   </label>
                   <SelectorCompetidores
                     competidores={datos.competidores}
-                    value={bloque.competidores_ids}
-                    onChange={(v) => actualizarBloque(marcaId, { competidores_ids: v })}
+                    value={{ competidores_ids: bloque.competidores_ids, tipos_completos: bloque.tipos_completos }}
+                    onChange={(v) => actualizarBloque(marcaId, v)}
                   />
                   {tipo === 'POSICIONAMIENTO' && (
                     <p className="text-xs text-gray-400 mt-1">El promedio y las columnas del reporte se calculan solo con las competencias elegidas.</p>

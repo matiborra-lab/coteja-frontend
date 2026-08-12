@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import { Campo, Boton, Modal, Leyenda } from '../components/ui';
-import { suscribirsePush } from '../utils/push';
+import { suscribirsePush, pushDisponible, estaSuscripto } from '../utils/push';
 
 const TIPOS_ALERTA = [
   { value: 'POSICIONAMIENTO', label: 'Reporte general de posicionamiento' },
@@ -615,6 +615,88 @@ const ESTADO_BADGE = {
 };
 const ESTADO_LABEL = { ACTIVA: 'Activa', PAUSADA: 'Pausada', ERROR: 'Error' };
 
+const CLAVE_BANNER_PUSH_OCULTO = 'coteja_banner_push_oculto';
+
+function esIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function yaInstalada() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+// Ofrece activar el push de entrada, sin tener que pasar primero por el
+// checkbox de una alerta puntual (misma suscribirsePush() que usa ese
+// checkbox mas abajo). Se oculta si: ya esta suscripto, el usuario lo
+// cerro con la cruz (se recuerda en localStorage, no vuelve a aparecer), o
+// el navegador no tiene nada util para ofrecer (iOS sin instalar como app,
+// sin soporte de Push, o ya bloqueo las notificaciones del sitio - en ese
+// caso insistir no sirve, tiene que habilitarlas el mismo desde el navegador).
+function BannerNotificacionesPush() {
+  const [visible, setVisible] = useState(false);
+  const [activando, setActivando] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelado = false;
+    async function evaluar() {
+      if (localStorage.getItem(CLAVE_BANNER_PUSH_OCULTO)) return;
+      if (!pushDisponible()) return;
+      if (esIOS() && !yaInstalada()) return;
+      if (Notification.permission === 'denied') return;
+      const suscripto = await estaSuscripto();
+      if (!cancelado && !suscripto) setVisible(true);
+    }
+    evaluar();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  function cerrar() {
+    localStorage.setItem(CLAVE_BANNER_PUSH_OCULTO, '1');
+    setVisible(false);
+  }
+
+  async function activar() {
+    setActivando(true);
+    setError('');
+    try {
+      await suscribirsePush();
+      setVisible(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActivando(false);
+    }
+  }
+
+  if (!visible) return null;
+
+  return (
+    <div className="bg-coteja-azul-50 border border-coteja-azul-200 rounded-xl p-4 flex items-start gap-3">
+      <span className="text-xl leading-none" aria-hidden="true">
+        🔔
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-coteja-azul-900">Activá las notificaciones y permití recibir alertas push en tu celular.</p>
+        {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+        <button
+          type="button"
+          onClick={activar}
+          disabled={activando}
+          className="mt-2 text-sm font-medium text-coteja-azul-700 hover:underline disabled:opacity-50"
+        >
+          {activando ? 'Activando...' : 'Activar notificaciones'}
+        </button>
+      </div>
+      <button type="button" onClick={cerrar} aria-label="Cerrar" className="text-coteja-azul-400 hover:text-coteja-azul-600 shrink-0 text-lg leading-none">
+        ×
+      </button>
+    </div>
+  );
+}
+
 export default function Alertas() {
   const { usuario } = useAuth();
   const { marcaActualId } = useMarca();
@@ -673,6 +755,8 @@ export default function Alertas() {
           + Nueva alerta
         </button>
       </div>
+
+      <BannerNotificacionesPush />
 
       <Leyenda>
         COTEJA consulta periódicamente las tiendas online para mantener actualizada la información. Algunas plataformas pueden

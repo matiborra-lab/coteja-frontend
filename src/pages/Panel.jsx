@@ -765,38 +765,40 @@ export default function Panel() {
         <NivelGeneral productos={productosFiltrados} />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <input
-                type="search"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre o categoría..."
-                className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
-              />
-              {(categoriasDisponibles.length > 0 || tiposDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
-                <button
-                  type="button"
-                  onClick={() => setMostrarFiltros((v) => !v)}
-                  className={
-                    'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
-                    (filtrosActivos > 0 ? 'border-coteja-azul-300 bg-coteja-azul-50 text-coteja-azul-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
-                  }
-                >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M2 4a1 1 0 011-1h14a1 1 0 01.8 1.6l-5.8 7.73V17a1 1 0 01-1.45.9l-3-1.5A1 1 0 017 15.5v-3.17L1.2 4.6A1 1 0 012 4z" />
-                  </svg>
-                  Filtros
-                  {filtrosActivos > 0 && (
-                    <span className="bg-coteja-azul-800 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-                      {filtrosActivos}
-                    </span>
-                  )}
-                </button>
-              )}
-              <FiltrosGuardadosMenu marcaActualId={marcaActualId} filtrosActuales={filtrosActuales} onAplicar={aplicarFiltrosGuardados} />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o categoría..."
+              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+            />
+            {(categoriasDisponibles.length > 0 || tiposDisponibles.length > 0 || competidoresDisponibles.length > 0 || productosDisponibles.length > 0) && (
+              <button
+                type="button"
+                onClick={() => setMostrarFiltros((v) => !v)}
+                className={
+                  'flex items-center gap-1.5 text-sm rounded-lg border px-3 py-2 whitespace-nowrap ' +
+                  (filtrosActivos > 0 ? 'border-coteja-azul-300 bg-coteja-azul-50 text-coteja-azul-800' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                }
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M2 4a1 1 0 011-1h14a1 1 0 01.8 1.6l-5.8 7.73V17a1 1 0 01-1.45.9l-3-1.5A1 1 0 017 15.5v-3.17L1.2 4.6A1 1 0 012 4z" />
+                </svg>
+                Filtros
+                {filtrosActivos > 0 && (
+                  <span className="bg-coteja-azul-800 text-white text-[10px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                    {filtrosActivos}
+                  </span>
+                )}
+              </button>
+            )}
+            <FiltrosGuardadosMenu marcaActualId={marcaActualId} filtrosActuales={filtrosActuales} onAplicar={aplicarFiltrosGuardados} />
+            {/* En mobile no entra comoda al lado de Filtros/Filtros guardados sin
+                amontonarse - queda solo para desktop, donde sobra espacio. */}
+            <div className="hidden md:block md:ml-auto">
+              <BotonActualizarPrecios marcaActualId={marcaActualId} />
             </div>
-            <BotonActualizarPrecios marcaActualId={marcaActualId} />
           </div>
 
           {filtrosActivos > 0 && (

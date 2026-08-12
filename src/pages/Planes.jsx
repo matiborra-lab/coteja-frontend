@@ -76,6 +76,8 @@ function TarjetaPlan({ plan, onContratar }) {
 function ModalContratar({ plan, onClose }) {
   const [email, setEmail] = useState('');
   const [nombreMarca, setNombreMarca] = useState('');
+  const [mostrarMailMP, setMostrarMailMP] = useState(false);
+  const [mailMP, setMailMP] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
@@ -86,7 +88,7 @@ function ModalContratar({ plan, onClose }) {
     try {
       const { init_point } = await api.post(
         '/api/mercadopago/suscripciones',
-        { email, nombre_marca: nombreMarca, plan: plan.id },
+        { email, nombre_marca: nombreMarca, plan: plan.id, mp_email: mostrarMailMP ? mailMP : undefined },
         { auth: false }
       );
       window.location.href = init_point;
@@ -117,6 +119,27 @@ function ModalContratar({ plan, onClose }) {
           onChange={(e) => setNombreMarca(e.target.value)}
           placeholder="ej: Fat Burger"
         />
+
+        {mostrarMailMP ? (
+          <Campo
+            label="Mail de tu cuenta de Mercado Pago"
+            type="email"
+            required
+            autoFocus
+            value={mailMP}
+            onChange={(e) => setMailMP(e.target.value)}
+            placeholder="Ingresalo acá"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMostrarMailMP(true)}
+            className="text-xs text-coteja-verde-700 underline hover:text-coteja-verde-800"
+          >
+            Mi mail de usuario no es el mismo de mi cuenta de Mercado Pago
+          </button>
+        )}
+
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Boton type="submit" cargando={cargando}>
           {cargando ? 'Redirigiendo a Mercado Pago...' : 'Ir a pagar'}

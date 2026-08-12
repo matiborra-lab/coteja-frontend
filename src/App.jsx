@@ -14,6 +14,7 @@ import Alertas from './pages/Alertas';
 import Actividad from './pages/Actividad';
 import AdminUsuarios from './pages/AdminUsuarios';
 import MiCuenta from './pages/MiCuenta';
+import Planes from './pages/Planes';
 
 // Un admin sin ninguna marca elegida todavia va a Usuarios (ahi elige "Ver
 // panel" de algun cliente). Si ya eligio una (via "Ver panel"), ve el Panel
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/olvide-clave" element={<OlvideClave />} />
             <Route path="/definir-clave" element={<DefinirClave />} />
+            <Route path="/planes" element={<Planes />} />
 
             <Route element={<RequireAuth />}>
               <Route path="/crear-marca" element={<CrearMarca />} />

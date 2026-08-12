@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useMarca } from '../context/MarcaContext';
 import { Campo, Boton, Modal } from '../components/ui';
+import { TIPOS_COMERCIO, tipoComercioLabel } from '../utils/tiposComercio';
 
 const ROLES = [
   { value: 'CLIENTE', label: 'Cliente' },
@@ -15,22 +16,6 @@ const ROLES = [
 const TIPOS_CUENTA = [
   { value: 'MARCA_UNICA', label: 'Marca única (1 marca)' },
   { value: 'MULTIMARCA', label: 'Multimarca (hasta 3 marcas)' },
-];
-
-// Mismos 12 valores que valida el backend (TIPOS_COMERCIO_VALIDOS en src/server/index.js).
-const TIPOS_COMERCIO = [
-  { value: 'COMIDA_RAPIDA', label: 'Comida rápida' },
-  { value: 'HAMBURGUESERIA', label: 'Hamburguesería' },
-  { value: 'COMERCIO', label: 'Comercio' },
-  { value: 'HELADERIA', label: 'Heladería' },
-  { value: 'CAFETERIA', label: 'Cafetería' },
-  { value: 'LOMITERIA', label: 'Lomitería' },
-  { value: 'SUSHI', label: 'Sushi' },
-  { value: 'EMPANADAS', label: 'Empanadas' },
-  { value: 'ETNICA', label: 'Étnica' },
-  { value: 'SANDWICHES', label: 'Sandwiches' },
-  { value: 'COMIDA_SALUDABLE', label: 'Comida saludable' },
-  { value: 'VARIOS', label: 'Varios' },
 ];
 
 function SelectorTipoComercio({ value, onChange, required }) {
@@ -53,10 +38,6 @@ function SelectorTipoComercio({ value, onChange, required }) {
 function formatoFecha(fecha) {
   if (!fecha) return 'nunca';
   return new Date(fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function tipoComercioLabel(valor) {
-  return TIPOS_COMERCIO.find((t) => t.value === valor)?.label || '-';
 }
 
 function rolLabel(valor) {

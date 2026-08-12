@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { Campo, Boton, Modal } from '../components/ui';
+import { TIPOS_COMERCIO } from '../utils/tiposComercio';
 
 const WHATSAPP_NUMERO = '5493512380620';
 function linkWhatsapp(mensaje) {
@@ -76,6 +77,8 @@ function TarjetaPlan({ plan, onContratar }) {
 function ModalContratar({ plan, onClose }) {
   const [email, setEmail] = useState('');
   const [nombreMarca, setNombreMarca] = useState('');
+  const [tipoComercio, setTipoComercio] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [mostrarMailMP, setMostrarMailMP] = useState(false);
   const [mailMP, setMailMP] = useState('');
   const [error, setError] = useState('');
@@ -88,7 +91,14 @@ function ModalContratar({ plan, onClose }) {
     try {
       const { init_point } = await api.post(
         '/api/mercadopago/suscripciones',
-        { email, nombre_marca: nombreMarca, plan: plan.id, mp_email: mostrarMailMP ? mailMP : undefined },
+        {
+          email,
+          nombre_marca: nombreMarca,
+          plan: plan.id,
+          tipo_comercio: tipoComercio,
+          telefono: telefono || undefined,
+          mp_email: mostrarMailMP ? mailMP : undefined,
+        },
         { auth: false }
       );
       window.location.href = init_point;
@@ -118,6 +128,25 @@ function ModalContratar({ plan, onClose }) {
           value={nombreMarca}
           onChange={(e) => setNombreMarca(e.target.value)}
           placeholder="ej: Fat Burger"
+        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de comercio</label>
+          <select
+            required
+            value={tipoComercio}
+            onChange={(e) => setTipoComercio(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+          >
+            <option value="">Elegí uno...</option>
+            {TIPOS_COMERCIO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+        <Campo
+          label="Teléfono de contacto (opcional)"
+          type="tel"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+          placeholder="ej: 3511234567"
         />
 
         {mostrarMailMP ? (

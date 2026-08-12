@@ -5,9 +5,16 @@ import { useMarca } from '../context/MarcaContext';
 import { Campo, Boton, Modal } from '../components/ui';
 
 const ROLES = [
-  { value: 'CLIENTE', label: 'Cliente (1 marca)' },
-  { value: 'CLIENTE_MULTIMARCA', label: 'Cliente multimarca (hasta 3 marcas)' },
+  { value: 'CLIENTE', label: 'Cliente' },
   { value: 'ADMIN', label: 'Administrador' },
+];
+
+// Independiente del rol: cuantas marcas puede tener la cuenta (mismo tope
+// que LIMITE_MARCAS_POR_TIPO_CUENTA en el backend). Un ADMIN no tiene
+// limite de marcas (ve todas, no necesita las suyas) asi que no aplica.
+const TIPOS_CUENTA = [
+  { value: 'MARCA_UNICA', label: 'Marca única (1 marca)' },
+  { value: 'MULTIMARCA', label: 'Multimarca (hasta 3 marcas)' },
 ];
 
 // Mismos 12 valores que valida el backend (TIPOS_COMERCIO_VALIDOS en src/server/index.js).
@@ -54,6 +61,10 @@ function tipoComercioLabel(valor) {
 
 function rolLabel(valor) {
   return ROLES.find((r) => r.value === valor)?.label || valor;
+}
+
+function tipoCuentaLabel(valor) {
+  return TIPOS_CUENTA.find((t) => t.value === valor)?.label || valor;
 }
 
 function ModalNuevaMarca({ usuario, onClose, onCreada }) {
@@ -221,6 +232,22 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
     }
   }
 
+  async function cambiarTipoCuenta(nuevoTipoCuenta) {
+    if (nuevoTipoCuenta === u.tipo_cuenta) return;
+    setError('');
+    setMensaje('');
+    setAccionandoRol(true);
+    try {
+      const data = await api.post('/api/admin/usuarios/' + u.id + '/rol', { tipo_cuenta: nuevoTipoCuenta });
+      setU((prev) => ({ ...prev, tipo_cuenta: data.tipo_cuenta }));
+      onActualizado();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAccionandoRol(false);
+    }
+  }
+
   async function toggleActivo() {
     setError('');
     setMensaje('');
@@ -269,10 +296,10 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
     onActualizado();
   }
 
-  // Mismo tope que LIMITE_MARCAS_POR_ROL en el backend - un CLIENTE comun
-  // tambien puede sumar SU marca (la primera), no solo un multimarca.
-  const LIMITE_MARCAS = { CLIENTE: 1, CLIENTE_MULTIMARCA: 3 };
-  const puedeAgregarMarca = LIMITE_MARCAS[u.rol] != null && u.marcas.length < LIMITE_MARCAS[u.rol];
+  // Mismo tope que LIMITE_MARCAS_POR_TIPO_CUENTA en el backend - un ADMIN
+  // no entra aca (no tiene marcas propias, ve todas).
+  const LIMITE_MARCAS = { MARCA_UNICA: 1, MULTIMARCA: 3 };
+  const puedeAgregarMarca = u.rol !== 'ADMIN' && u.marcas.length < LIMITE_MARCAS[u.tipo_cuenta];
 
   return (
     <Modal titulo={u.email} onClose={onClose} ancho="max-w-xl">
@@ -312,6 +339,20 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
             {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </div>
+
+        {u.rol !== 'ADMIN' && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase text-gray-400">Tipo de cuenta</h3>
+            <select
+              value={u.tipo_cuenta}
+              disabled={accionandoRol}
+              onChange={(e) => cambiarTipoCuenta(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              {TIPOS_CUENTA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+        )}
 
         {u.rol !== 'ADMIN' && (
           <div className="space-y-2">
@@ -446,6 +487,7 @@ export default function AdminUsuarios() {
   const [busqueda, setBusqueda] = useState('');
   const [email, setEmail] = useState('');
   const [rol, setRol] = useState('CLIENTE');
+  const [tipoCuenta, setTipoCuenta] = useState('MARCA_UNICA');
   const [marcaNombre, setMarcaNombre] = useState('');
   const [tipoComercio, setTipoComercio] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -471,6 +513,7 @@ export default function AdminUsuarios() {
       const data = await api.post('/api/admin/usuarios', {
         email,
         rol,
+        tipo_cuenta: rol !== 'ADMIN' ? tipoCuenta : undefined,
         marca_nombre: rol !== 'ADMIN' && marcaNombre ? marcaNombre : undefined,
         tipo_comercio: rol !== 'ADMIN' && tipoComercio ? tipoComercio : undefined,
       });
@@ -479,6 +522,7 @@ export default function AdminUsuarios() {
       setMarcaNombre('');
       setTipoComercio('');
       setRol('CLIENTE');
+      setTipoCuenta('MARCA_UNICA');
       await cargar();
     } catch (err) {
       setError(err.message);
@@ -521,7 +565,7 @@ export default function AdminUsuarios() {
         <TiendasPendientes />
       ) : (
         <>
-          <form onSubmit={onSubmit} className="bg-white rounded-xl shadow p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+          <form onSubmit={onSubmit} className="bg-white rounded-xl shadow p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
             <Campo label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
@@ -533,6 +577,14 @@ export default function AdminUsuarios() {
             </div>
             {rol !== 'ADMIN' && (
               <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cuenta</label>
+                  <select value={tipoCuenta} onChange={(e) => setTipoCuenta(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                    {TIPOS_CUENTA.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <Campo
                   label="Nombre de la marca"
                   value={marcaNombre}
@@ -569,6 +621,7 @@ export default function AdminUsuarios() {
                         <th className="p-3 font-semibold">Mail</th>
                         <th className="p-3 font-semibold">Último log</th>
                         <th className="p-3 font-semibold">Rol</th>
+                        <th className="p-3 font-semibold">Cuenta</th>
                         <th className="p-3 font-semibold"></th>
                       </tr>
                     </thead>
@@ -615,6 +668,9 @@ export default function AdminUsuarios() {
                           <td className="p-3 align-top text-gray-900">{u.email}</td>
                           <td className="p-3 align-top text-gray-500 text-xs whitespace-nowrap">{formatoFecha(u.ultimo_login)}</td>
                           <td className="p-3 align-top text-gray-600 whitespace-nowrap">{rolLabel(u.rol)}</td>
+                          <td className="p-3 align-top text-gray-600 whitespace-nowrap">
+                            {u.rol === 'ADMIN' ? <span className="text-xs text-gray-400">—</span> : tipoCuentaLabel(u.tipo_cuenta)}
+                          </td>
                           <td className="p-3 align-top">
                             <button onClick={() => setUsuarioViendo(u)} className="text-xs text-coteja-azul-700 hover:underline whitespace-nowrap">
                               Ver
@@ -639,6 +695,12 @@ export default function AdminUsuarios() {
                         <span className="text-gray-500">Rol</span>
                         <span className="text-gray-700">{rolLabel(u.rol)}</span>
                       </div>
+                      {u.rol !== 'ADMIN' && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">Cuenta</span>
+                          <span className="text-gray-700">{tipoCuentaLabel(u.tipo_cuenta)}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-gray-500">Último log</span>
                         <span className="text-gray-700">{formatoFecha(u.ultimo_login)}</span>

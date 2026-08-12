@@ -212,7 +212,7 @@ export default function MiCuenta() {
       <h1 className="text-xl font-semibold text-gray-900">Mi cuenta</h1>
       <SeccionMarca />
       <SeccionPassword />
-      {usuario.rol === 'CLIENTE_MULTIMARCA' && <SeccionMisMarcas />}
+      {usuario.tipo_cuenta === 'MULTIMARCA' && <SeccionMisMarcas />}
     </div>
   );
 }

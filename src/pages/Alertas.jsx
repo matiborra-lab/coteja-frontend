@@ -352,7 +352,7 @@ function bloqueVacio() {
 
 function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onEliminado, onCancelar }) {
   const { marcas, usuario } = { ...useMarca(), usuario: useAuth().usuario };
-  const esMultimarca = usuario.rol === 'CLIENTE_MULTIMARCA' && marcas.length > 1;
+  const esMultimarca = usuario.tipo_cuenta === 'MULTIMARCA' && marcas.length > 1;
 
   const [tipo, setTipo] = useState(alerta?.tipo || 'CAMBIOS_COMPETENCIA');
   const [observacion, setObservacion] = useState(alerta?.observacion || '');

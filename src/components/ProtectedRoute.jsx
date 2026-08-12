@@ -14,8 +14,8 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
-// Ademas de estar logueado, exige que un CLIENTE (o CLIENTE_MULTIMARCA) ya
-// tenga al menos una marca (si no, lo manda a /crear-marca). Un admin no
+// Ademas de estar logueado, exige que un CLIENTE (de cualquier tipo_cuenta)
+// ya tenga al menos una marca (si no, lo manda a /crear-marca). Un admin no
 // necesita ninguna. Usar DENTRO de <RequireAuth>.
 export function RequireMarca() {
   const { usuario } = useAuth();

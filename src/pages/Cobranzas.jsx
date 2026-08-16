@@ -65,6 +65,7 @@ function ModalBilling({ cliente, onClose, onGuardado }) {
   const [billingMethod, setBillingMethod] = useState(cliente.billing_method);
   const [plan, setPlan] = useState(cliente.subscription_plan || 'CLIENTE');
   const [estado, setEstado] = useState(cliente.subscription_status);
+  const [precioFijo, setPrecioFijo] = useState(!!cliente.precio_personalizado);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
@@ -78,6 +79,9 @@ function ModalBilling({ cliente, onClose, onGuardado }) {
         subscription_plan: plan,
         subscription_status: estado,
       });
+      if (cliente.billing_method === 'MERCADO_PAGO_SUBSCRIPTION' && precioFijo !== !!cliente.precio_personalizado) {
+        await api.patch('/api/admin/usuarios/' + cliente.id + '/precio-fijo', { precio_personalizado: precioFijo });
+      }
       onGuardado();
     } catch (err) {
       setError(err.message);
@@ -113,10 +117,150 @@ function ModalBilling({ cliente, onClose, onGuardado }) {
             {ESTADOS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
+        {cliente.billing_method === 'MERCADO_PAGO_SUBSCRIPTION' && (
+          <label className="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+            <input type="checkbox" className="mt-0.5" checked={precioFijo} onChange={(e) => setPrecioFijo(e.target.checked)} />
+            <span>
+              Precio fijo - cuando subas el precio de este plan desde "Precios de planes", esta cuenta queda excluida y
+              mantiene el monto con el que se suscribió.
+            </span>
+          </label>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Boton type="submit" cargando={cargando}>Guardar</Boton>
       </form>
     </Modal>
+  );
+}
+
+function EditorPrecios({ onCambio }) {
+  const [planes, setPlanes] = useState(null);
+  const [editando, setEditando] = useState(null); // id del plan en edicion
+  const [monto, setMonto] = useState('');
+  const [impacto, setImpacto] = useState(null); // {afectados, excluidos} una vez pedido el preview
+  const [resultado, setResultado] = useState(null); // {actualizados, fallidos} tras confirmar
+  const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
+
+  async function cargar() {
+    const data = await api.get('/api/admin/planes');
+    setPlanes(data);
+  }
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  function empezarEdicion(p) {
+    setEditando(p.id);
+    setMonto(String(p.monto));
+    setImpacto(null);
+    setResultado(null);
+    setError('');
+  }
+
+  async function pedirImpacto() {
+    setError('');
+    if (!monto || !(Number(monto) > 0)) {
+      setError('Ingresá un monto válido');
+      return;
+    }
+    setCargando(true);
+    try {
+      const data = await api.get('/api/admin/planes/' + editando + '/impacto');
+      setImpacto(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function confirmar() {
+    setCargando(true);
+    setError('');
+    try {
+      const data = await api.patch('/api/admin/planes/' + editando, { monto: Number(monto) });
+      setResultado(data);
+      await cargar();
+      onCambio();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  function cerrar() {
+    setEditando(null);
+    setImpacto(null);
+    setResultado(null);
+  }
+
+  if (!planes) return null;
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 space-y-3">
+      <h3 className="text-sm font-medium text-gray-700">Precios de planes</h3>
+      {planes.map((p) => (
+        <div key={p.id} className="flex items-center justify-between gap-3 text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
+          <span className="text-gray-700">{p.label}</span>
+          {editando === p.id ? (
+            <div className="flex-1 max-w-sm space-y-2">
+              {!resultado ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={monto}
+                      onChange={(e) => { setMonto(e.target.value); setImpacto(null); }}
+                      className="w-32 rounded-lg border border-gray-300 px-2 py-1"
+                    />
+                    {impacto === null ? (
+                      <Boton onClick={pedirImpacto} cargando={cargando}>Continuar</Boton>
+                    ) : (
+                      <Boton onClick={confirmar} cargando={cargando}>Confirmar</Boton>
+                    )}
+                    <button type="button" onClick={cerrar} className="text-xs text-gray-400">Cancelar</button>
+                  </div>
+                  {impacto !== null && (
+                    <Leyenda>
+                      Esto va a actualizar el monto real en Mercado Pago de <strong>{impacto.afectados}</strong>{' '}
+                      {impacto.afectados === 1 ? 'suscripción activa' : 'suscripciones activas'}
+                      {impacto.excluidos > 0 ? ' (' + impacto.excluidos + ' con precio fijo quedan excluidas)' : ''}. Los
+                      clientes Manual/Cortesía de este plan no necesitan ningún cambio aparte.
+                    </Leyenda>
+                  )}
+                  {error && <p className="text-xs text-red-600">{error}</p>}
+                </>
+              ) : (
+                <div className="text-xs space-y-1">
+                  <p className="text-coteja-verde-700 font-medium">
+                    Precio actualizado. {resultado.actualizados.length}{' '}
+                    {resultado.actualizados.length === 1 ? 'suscripción de Mercado Pago actualizada' : 'suscripciones de Mercado Pago actualizadas'}.
+                  </p>
+                  {resultado.fallidos.length > 0 && (
+                    <div className="text-red-600">
+                      <p className="font-medium">{resultado.fallidos.length} fallaron - revisalas a mano:</p>
+                      <ul className="list-disc list-inside">
+                        {resultado.fallidos.map((f) => <li key={f.suscripcion_id}>{f.mp_payer_email}: {f.error}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  <button type="button" onClick={cerrar} className="text-coteja-azul-700 underline">Cerrar</button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="font-medium text-gray-900">{formatoMoneda(p.monto)}</span>
+              <button onClick={() => empezarEdicion(p)} className="text-coteja-azul-700 hover:underline text-xs">Editar</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -373,6 +517,8 @@ function ListaClientes() {
 
   return (
     <div className="space-y-3">
+      <EditorPrecios onCambio={cargar} />
+
       <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">

@@ -22,6 +22,12 @@ export default function Layout() {
   const [incidencias, setIncidencias] = useState([]);
   const [verIncidencias, setVerIncidencias] = useState(true);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [verDeuda, setVerDeuda] = useState(true);
+
+  // Banner no bloqueante: un cliente MANUAL con meses sin cubrir NUNCA se
+  // deshabilita solo (a diferencia de MERCADO_PAGO_SUBSCRIPTION, que
+  // Mercado Pago pausa/reactiva solo) - esto es lo unico que le avisa.
+  const mostrarDeuda = usuario.rol === 'CLIENTE' && usuario.billing_method === 'MANUAL' && (usuario.periodos_pendientes || 0) > 0;
 
   function volverAUsuarios() {
     setMarcaActualId(null);
@@ -158,6 +164,28 @@ export default function Layout() {
               <p className="mt-1">Revisalo en "Tiendas" y borralo o reemplazalo por otro producto.</p>
             </div>
             <button onClick={() => setVerIncidencias(false)} className="text-amber-700 hover:text-amber-900 text-lg leading-none">
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
+
+      {verDeuda && mostrarDeuda && (
+        <div className="bg-amber-50 border-b border-amber-200">
+          <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-start justify-between gap-4">
+            <div className="text-sm text-amber-800">
+              Tenés {usuario.periodos_pendientes} mes{usuario.periodos_pendientes > 1 ? 'es' : ''} sin registrar como pagado{usuario.periodos_pendientes > 1 ? 's' : ''}.
+              Tu cuenta sigue activa - escribinos para regularizarlo.{' '}
+              <a
+                href={'https://wa.me/5493512380620?text=' + encodeURIComponent('Hola, quiero regularizar el pago de mi suscripción a Coteja.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-medium hover:text-amber-900"
+              >
+                Escribir por WhatsApp →
+              </a>
+            </div>
+            <button onClick={() => setVerDeuda(false)} className="text-amber-700 hover:text-amber-900 text-lg leading-none">
               &times;
             </button>
           </div>

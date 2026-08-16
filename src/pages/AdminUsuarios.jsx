@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useMarca } from '../context/MarcaContext';
 import { Campo, Boton, Modal } from '../components/ui';
 import { TIPOS_COMERCIO, tipoComercioLabel } from '../utils/tiposComercio';
+import Cobranzas from './Cobranzas';
 
 const ROLES = [
   { value: 'CLIENTE', label: 'Cliente' },
@@ -544,7 +545,7 @@ function TiendasPendientes() {
 export default function AdminUsuarios() {
   const { setMarcaActualId, recargarMarcas } = useMarca();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('usuarios'); // 'usuarios' | 'pendientes'
+  const [tab, setTab] = useState('usuarios'); // 'usuarios' | 'pendientes' | 'cobranzas'
   const [usuarios, setUsuarios] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -642,10 +643,18 @@ export default function AdminUsuarios() {
         >
           Tiendas pendientes
         </button>
+        <button
+          onClick={() => setTab('cobranzas')}
+          className={'text-sm px-3 py-2 font-medium border-b-2 ' + (tab === 'cobranzas' ? 'border-coteja-azul-800 text-coteja-azul-800' : 'border-transparent text-gray-500')}
+        >
+          Cobranzas
+        </button>
       </div>
 
       {tab === 'pendientes' ? (
         <TiendasPendientes />
+      ) : tab === 'cobranzas' ? (
+        <Cobranzas />
       ) : (
         <>
           <form onSubmit={onSubmit} className="bg-white rounded-xl shadow p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">

@@ -5,6 +5,9 @@ import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import InstalarApp from './InstalarApp';
 import CuentaMenu from './CuentaMenu';
+import { Modal, Boton } from './ui';
+
+const CLAVE_BIENVENIDA_AYUDA = 'coteja_bienvenida_ayuda_vista';
 
 const linkClass = ({ isActive }) =>
   'px-3 py-2 rounded-lg text-sm font-medium ' +
@@ -23,6 +26,23 @@ export default function Layout() {
   const [verIncidencias, setVerIncidencias] = useState(true);
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [verDeuda, setVerDeuda] = useState(true);
+  const [verBienvenida, setVerBienvenida] = useState(false);
+
+  // Popup de bienvenida al Centro de ayuda - se muestra UNA sola vez por
+  // usuario (marca guardada en localStorage, no en el servidor: es solo
+  // una sugerencia de UI, no hace falta persistirla). Solo para clientes -
+  // un admin ya conoce la plataforma.
+  useEffect(() => {
+    if (usuario.rol === 'ADMIN') return;
+    const clave = CLAVE_BIENVENIDA_AYUDA + '_' + usuario.id;
+    if (localStorage.getItem(clave)) return;
+    setVerBienvenida(true);
+  }, [usuario.id, usuario.rol]);
+
+  function cerrarBienvenida() {
+    localStorage.setItem(CLAVE_BIENVENIDA_AYUDA + '_' + usuario.id, '1');
+    setVerBienvenida(false);
+  }
 
   // Banner no bloqueante: un cliente MANUAL con meses sin cubrir NUNCA se
   // deshabilita solo (a diferencia de MERCADO_PAGO_SUBSCRIPTION, que
@@ -199,6 +219,23 @@ export default function Layout() {
           <p className="text-center text-gray-400 py-16">Elegí una marca arriba para ver su información.</p>
         )}
       </main>
+
+      {verBienvenida && (
+        <Modal titulo="¡Bienvenido a COTEJA!" onClose={cerrarBienvenida}>
+          <p className="text-sm text-gray-600">
+            Antes de arrancar, te recomendamos revisar nuestro <strong>Centro de ayuda</strong>: guías paso a paso de
+            cómo cargar tus artículos, vincular tu competencia, armar alertas y leer el Panel.
+          </p>
+          <div className="mt-4 flex items-center gap-3">
+            <Link to="/ayuda" onClick={cerrarBienvenida} className="flex-1">
+              <Boton>Aprendé cómo usar COTEJA</Boton>
+            </Link>
+            <button onClick={cerrarBienvenida} className="text-sm text-gray-500 hover:text-gray-700 shrink-0">
+              Ahora no
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import Alertas from './pages/Alertas';
 import Actividad from './pages/Actividad';
 import AdminUsuarios from './pages/AdminUsuarios';
 import MiCuenta from './pages/MiCuenta';
+import Ayuda from './pages/Ayuda';
 import Planes from './pages/Planes';
 
 // Un admin sin ninguna marca elegida todavia va a Usuarios (ahi elige "Ver
@@ -48,6 +49,8 @@ export default function App() {
                   <Route path="/alertas" element={<Alertas />} />
                   <Route path="/actividad" element={<Actividad />} />
                   <Route path="/mi-cuenta" element={<MiCuenta />} />
+                  <Route path="/ayuda" element={<Ayuda />} />
+                  <Route path="/ayuda/:articuloId" element={<Ayuda />} />
                   <Route element={<RequireAdmin />}>
                     <Route path="/admin" element={<AdminUsuarios />} />
                   </Route>

@@ -89,6 +89,9 @@ export default function CuentaMenu() {
                 Mi cuenta
               </NavLink>
             )}
+            <NavLink to="/ayuda" onClick={() => setAbierto(false)} className="block px-3 py-2 text-gray-700 hover:bg-gray-50">
+              Centro de ayuda
+            </NavLink>
             <button onClick={logout} className="w-full text-left px-3 py-2 text-red-600 hover:bg-gray-50">
               Salir
             </button>

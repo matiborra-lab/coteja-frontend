@@ -741,7 +741,7 @@ function BannerNotificacionesPush() {
         🔔
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-coteja-azul-900">Activá las notificaciones y permití recibir alertas push en tu celular.</p>
+        <p className="text-sm text-coteja-azul-900">Activá las notificaciones y permití recibir alertas push en tu celular o computadora.</p>
         {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
         <button
           type="button"

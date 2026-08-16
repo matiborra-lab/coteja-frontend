@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
@@ -34,6 +34,20 @@ function mesLabel(fechaIso) {
   return new Date(fechaIso).toLocaleDateString('es-AR', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+// Cuantos dias faltan (o pasaron) para un vencimiento - determina el color
+// de urgencia en la tabla de Cobranzas. Compara contra la medianoche UTC de
+// hoy para no depender de la hora/huso del navegador.
+function vencimientoInfo(fechaIso) {
+  if (!fechaIso) return { texto: '—', clase: 'text-gray-400', dias: Infinity };
+  const hoy = new Date();
+  const hoyUTC = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const dias = Math.round((new Date(fechaIso).getTime() - hoyUTC) / 86400000);
+  const texto = new Date(fechaIso).toLocaleDateString('es-AR', { timeZone: 'UTC' });
+  if (dias < 0) return { texto: texto + ' (vencido)', clase: 'text-red-600 font-semibold', dias };
+  if (dias <= 7) return { texto, clase: 'text-amber-600 font-medium', dias };
+  return { texto, clase: 'text-gray-600', dias };
+}
+
 const BADGE_BILLING = {
   MERCADO_PAGO_SUBSCRIPTION: 'bg-coteja-azul-100 text-coteja-azul-800',
   MANUAL: 'bg-gray-100 text-gray-700',
@@ -66,12 +80,17 @@ function ModalBilling({ cliente, onClose, onGuardado }) {
   const [plan, setPlan] = useState(cliente.subscription_plan || 'CLIENTE');
   const [estado, setEstado] = useState(cliente.subscription_status);
   const [precioFijo, setPrecioFijo] = useState(!!cliente.precio_personalizado);
+  const [montoFijo, setMontoFijo] = useState(String(cliente.monto_suscripcion_mp ?? cliente.monto_mensual ?? ''));
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
   async function guardar(e) {
     e.preventDefault();
     setError('');
+    if (precioFijo && !(Number(montoFijo) > 0)) {
+      setError('Ingresá un monto válido para el precio fijo');
+      return;
+    }
     setCargando(true);
     try {
       await api.patch('/api/admin/usuarios/' + cliente.id + '/billing', {
@@ -79,8 +98,15 @@ function ModalBilling({ cliente, onClose, onGuardado }) {
         subscription_plan: plan,
         subscription_status: estado,
       });
-      if (cliente.billing_method === 'MERCADO_PAGO_SUBSCRIPTION' && precioFijo !== !!cliente.precio_personalizado) {
-        await api.patch('/api/admin/usuarios/' + cliente.id + '/precio-fijo', { precio_personalizado: precioFijo });
+      if (cliente.billing_method === 'MERCADO_PAGO_SUBSCRIPTION') {
+        const cambioPrecioFijo = precioFijo !== !!cliente.precio_personalizado;
+        const cambioMonto = precioFijo && Number(montoFijo) !== Number(cliente.monto_suscripcion_mp);
+        if (cambioPrecioFijo || cambioMonto) {
+          await api.patch('/api/admin/usuarios/' + cliente.id + '/precio-fijo', {
+            precio_personalizado: precioFijo,
+            monto: precioFijo ? Number(montoFijo) : undefined,
+          });
+        }
       }
       onGuardado();
     } catch (err) {
@@ -118,13 +144,28 @@ function ModalBilling({ cliente, onClose, onGuardado }) {
           </select>
         </div>
         {cliente.billing_method === 'MERCADO_PAGO_SUBSCRIPTION' && (
-          <label className="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
-            <input type="checkbox" className="mt-0.5" checked={precioFijo} onChange={(e) => setPrecioFijo(e.target.checked)} />
-            <span>
-              Precio fijo - cuando subas el precio de este plan desde "Precios de planes", esta cuenta queda excluida y
-              mantiene el monto con el que se suscribió.
-            </span>
-          </label>
+          <div className="space-y-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input type="checkbox" className="mt-0.5" checked={precioFijo} onChange={(e) => setPrecioFijo(e.target.checked)} />
+              <span>
+                Precio fijo - esta cuenta queda excluida cuando subas el precio de este plan desde "Precios de planes"
+                (ej: recién se suscribió y no querés que le toque el aumento el mes que viene).
+              </span>
+            </label>
+            {precioFijo && (
+              <div className="pl-6">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Monto fijo para este cliente</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={montoFijo}
+                  onChange={(e) => setMontoFijo(e.target.value)}
+                  className="w-40 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">Se actualiza en Mercado Pago al guardar. Al destildar, vuelve a sincronizarse con el precio vigente del plan.</p>
+              </div>
+            )}
+          </div>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Boton type="submit" cargando={cargando}>Guardar</Boton>
@@ -503,6 +544,7 @@ function ListaClientes() {
   const [modalBilling, setModalBilling] = useState(null);
   const [modalHistorial, setModalHistorial] = useState(null);
   const [toast, setToast] = useState('');
+  const [ordenDir, setOrdenDir] = useState(null); // 'asc' | 'desc' | null (orden natural, por email)
 
   async function cargar() {
     const data = await api.get('/api/admin/cobranzas');
@@ -512,6 +554,17 @@ function ListaClientes() {
   useEffect(() => {
     cargar();
   }, []);
+
+  function ordenarPorVencimiento() {
+    setOrdenDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+  }
+
+  const clientesOrdenados = useMemo(() => {
+    if (!clientes || !ordenDir) return clientes;
+    const conDias = clientes.map((c) => ({ c, dias: vencimientoInfo(c.proximo_vencimiento).dias }));
+    conDias.sort((a, b) => (ordenDir === 'asc' ? a.dias - b.dias : b.dias - a.dias));
+    return conDias.map((f) => f.c);
+  }, [clientes, ordenDir]);
 
   if (!clientes) return <p className="text-gray-400 text-sm py-8 text-center">Cargando...</p>;
 
@@ -529,11 +582,17 @@ function ListaClientes() {
               <th className="text-left px-4 py-2">Estado</th>
               <th className="text-left px-4 py-2">Último pago</th>
               <th className="text-left px-4 py-2">Deuda</th>
+              <th className="text-left px-4 py-2">
+                <button onClick={ordenarPorVencimiento} className="flex items-center gap-1 hover:text-gray-700">
+                  Próximo vencimiento
+                  {ordenDir && <span>{ordenDir === 'asc' ? '▲' : '▼'}</span>}
+                </button>
+              </th>
               <th className="text-right px-4 py-2">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {clientes.map((c) => (
+            {clientesOrdenados.map((c) => (
               <tr key={c.id}>
                 <td className="px-4 py-2">
                   <div className="font-medium text-gray-900">{c.email}</div>
@@ -554,6 +613,9 @@ function ListaClientes() {
                     <span className="text-green-600">al día</span>
                   )}
                 </td>
+                <td className={'px-4 py-2 ' + vencimientoInfo(c.proximo_vencimiento).clase}>
+                  {vencimientoInfo(c.proximo_vencimiento).texto}
+                </td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <button onClick={() => setModalHistorial(c)} className="text-coteja-azul-700 hover:underline text-xs mr-3">Pagos</button>
                   <button onClick={() => setModalBilling(c)} className="text-coteja-azul-700 hover:underline text-xs">Editar</button>
@@ -564,8 +626,13 @@ function ListaClientes() {
         </table>
       </div>
 
+      {clientes.length > 0 && (
+        <button onClick={ordenarPorVencimiento} className="md:hidden text-xs text-gray-500 flex items-center gap-1">
+          Ordenar por próximo vencimiento {ordenDir && <span>{ordenDir === 'asc' ? '▲' : '▼'}</span>}
+        </button>
+      )}
       <div className="md:hidden space-y-3">
-        {clientes.map((c) => (
+        {clientesOrdenados.map((c) => (
           <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100 space-y-2">
             <div className="font-medium text-gray-900">{c.email}</div>
             <div className="flex flex-wrap gap-2">
@@ -579,6 +646,9 @@ function ListaClientes() {
               ) : (
                 <span className="text-green-600">Al día</span>
               )}
+            </p>
+            <p className={'text-xs ' + vencimientoInfo(c.proximo_vencimiento).clase}>
+              Próximo vencimiento: {vencimientoInfo(c.proximo_vencimiento).texto}
             </p>
             <div className="flex gap-3 pt-1">
               <button onClick={() => setModalHistorial(c)} className="text-coteja-azul-700 hover:underline text-xs">Pagos</button>

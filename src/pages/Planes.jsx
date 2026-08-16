@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { Campo, Boton, Modal } from '../components/ui';
@@ -9,12 +9,14 @@ function linkWhatsapp(mensaje) {
   return 'https://wa.me/' + WHATSAPP_NUMERO + '?text=' + encodeURIComponent(mensaje);
 }
 
-const PLANES = [
+// Copy de marketing (descripcion/beneficios) - el precio NO vive aca, se pide
+// a /api/planes (unica fuente de verdad, ver mercadopago/index.js en el
+// backend) para no tener el monto hardcodeado en dos lugares distintos.
+const PLANES_COPY = [
   {
     id: 'CLIENTE',
     nombre: 'Cliente',
     descripcion: 'Para quien maneja una sola marca o local.',
-    precio: 20000,
     destacado: false,
     beneficios: [
       '1 marca monitoreada',
@@ -28,7 +30,6 @@ const PLANES = [
     id: 'CLIENTE_MULTIMARCA',
     nombre: 'Cliente multimarca',
     descripcion: 'Para grupos o cadenas que operan más de una marca.',
-    precio: 30000,
     destacado: true,
     beneficios: [
       'Hasta 3 marcas monitoreadas',
@@ -40,7 +41,7 @@ const PLANES = [
   },
 ];
 
-function TarjetaPlan({ plan, onContratar }) {
+function TarjetaPlan({ plan, precio, onContratar }) {
   return (
     <div
       className={
@@ -56,7 +57,9 @@ function TarjetaPlan({ plan, onContratar }) {
       <h2 className="text-xl font-semibold text-gray-900">{plan.nombre}</h2>
       <p className="text-sm text-gray-500 mt-1">{plan.descripcion}</p>
       <div className="flex items-baseline gap-1 mt-6">
-        <span className="text-4xl font-bold text-gray-900">${plan.precio.toLocaleString('es-AR')}</span>
+        <span className="text-4xl font-bold text-gray-900">
+          {precio == null ? '...' : '$' + precio.toLocaleString('es-AR')}
+        </span>
         <span className="text-sm text-gray-400">ARS / mes</span>
       </div>
       <ul className="mt-6 space-y-3 flex-grow">
@@ -69,7 +72,9 @@ function TarjetaPlan({ plan, onContratar }) {
           </li>
         ))}
       </ul>
-      <Boton onClick={() => onContratar(plan)}>Contratar {plan.nombre}</Boton>
+      <Boton onClick={() => onContratar(plan)} disabled={precio == null}>
+        Contratar {plan.nombre}
+      </Boton>
     </div>
   );
 }
@@ -180,8 +185,16 @@ function ModalContratar({ plan, onClose }) {
 
 export default function Planes() {
   const [planSeleccionado, setPlanSeleccionado] = useState(null);
+  const [precios, setPrecios] = useState({});
   const [searchParams] = useSearchParams();
   const vuelveDePago = searchParams.get('suscripcion') === 'gracias';
+
+  useEffect(() => {
+    api
+      .get('/api/planes', { auth: false })
+      .then(({ planes }) => setPrecios(Object.fromEntries(planes.map((p) => [p.id, p.monto]))))
+      .catch(() => {}); // si falla, las tarjetas quedan con precio "..." y el boton deshabilitado
+  }, []);
 
   return (
     <div className="min-h-screen bg-coteja-humo">
@@ -211,8 +224,13 @@ export default function Planes() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-          {PLANES.map((plan) => (
-            <TarjetaPlan key={plan.id} plan={plan} onContratar={setPlanSeleccionado} />
+          {PLANES_COPY.map((plan) => (
+            <TarjetaPlan
+              key={plan.id}
+              plan={plan}
+              precio={precios[plan.id]}
+              onContratar={() => setPlanSeleccionado({ ...plan, precio: precios[plan.id] })}
+            />
           ))}
         </div>
 

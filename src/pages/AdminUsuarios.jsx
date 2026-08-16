@@ -182,6 +182,10 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
   const [accionandoActivo, setAccionandoActivo] = useState(false);
   const [reenviando, setReenviando] = useState(false);
   const [mostrarNuevaMarca, setMostrarNuevaMarca] = useState(false);
+  const [editandoEmail, setEditandoEmail] = useState(false);
+  const [nuevoEmail, setNuevoEmail] = useState(u.email);
+  const [guardandoEmail, setGuardandoEmail] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
 
   async function reenviar() {
     setError('');
@@ -244,6 +248,50 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
     }
   }
 
+  async function guardarEmail() {
+    if (nuevoEmail.trim() === u.email) {
+      setEditandoEmail(false);
+      return;
+    }
+    setError('');
+    setMensaje('');
+    setGuardandoEmail(true);
+    try {
+      const data = await api.patch('/api/admin/usuarios/' + u.id + '/email', { email: nuevoEmail.trim() });
+      setU((prev) => ({ ...prev, email: data.email }));
+      setEditandoEmail(false);
+      setMensaje('Mail actualizado.');
+      onActualizado();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardandoEmail(false);
+    }
+  }
+
+  async function eliminarUsuario() {
+    const confirmacion = prompt(
+      'Esto elimina a "' + u.email + '" - queda en el listado como Eliminado, pero no puede volver a entrar.\n' +
+      'Escribí el mail para confirmar:'
+    );
+    if (confirmacion !== u.email) {
+      if (confirmacion != null) alert('El mail no coincide - no se eliminó nada.');
+      return;
+    }
+    setError('');
+    setMensaje('');
+    setEliminando(true);
+    try {
+      const data = await api.post('/api/admin/usuarios/' + u.id + '/eliminar');
+      setU((prev) => ({ ...prev, activo: data.activo, eliminado_en: data.eliminado_en }));
+      onActualizado();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEliminando(false);
+    }
+  }
+
   async function verPanel(marcaId) {
     setMarcaActualId(marcaId);
     await recargarMarcas();
@@ -286,8 +334,8 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
     <Modal titulo={u.email} onClose={onClose} ancho="max-w-xl">
       <div className="space-y-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
-            {u.activo ? 'Habilitado' : 'Deshabilitado'}
+          <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.eliminado_en ? 'bg-gray-200 text-gray-600' : u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
+            {u.eliminado_en ? 'Eliminado' : u.activo ? 'Habilitado' : 'Deshabilitado'}
           </span>
           <span className="text-xs text-gray-500">
             {u.clave_definida ? 'clave definida' : 'invitación pendiente'} · último login: {formatoFecha(u.ultimo_login)}
@@ -299,14 +347,34 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
 
         <div className="space-y-2">
           <h3 className="text-xs font-semibold uppercase text-gray-400">Accesos</h3>
-          <div className="flex flex-wrap gap-3">
-            <button onClick={reenviar} disabled={reenviando} className="text-sm text-coteja-azul-700 hover:underline disabled:opacity-50">
-              Reenviar acceso
-            </button>
-            <a href={'mailto:' + u.email} className="text-sm text-coteja-azul-700 hover:underline">
-              Contactar por mail →
-            </a>
-          </div>
+          {editandoEmail ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="email"
+                value={nuevoEmail}
+                onChange={(e) => setNuevoEmail(e.target.value)}
+                className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
+              />
+              <button onClick={guardarEmail} disabled={guardandoEmail} className="text-xs text-coteja-verde-700 hover:underline disabled:opacity-50">
+                Guardar
+              </button>
+              <button onClick={() => { setEditandoEmail(false); setNuevoEmail(u.email); }} className="text-xs text-gray-500 hover:underline">
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              <button onClick={() => setEditandoEmail(true)} className="text-sm text-coteja-azul-700 hover:underline">
+                Editar mail
+              </button>
+              <button onClick={reenviar} disabled={reenviando} className="text-sm text-coteja-azul-700 hover:underline disabled:opacity-50">
+                Reenviar acceso
+              </button>
+              <a href={'mailto:' + u.email} className="text-sm text-coteja-azul-700 hover:underline">
+                Contactar por mail →
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -366,13 +434,26 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
 
         <div className="space-y-2">
           <h3 className="text-xs font-semibold uppercase text-gray-400">Acceso</h3>
-          <button
-            onClick={toggleActivo}
-            disabled={accionandoActivo}
-            className={'text-sm hover:underline disabled:opacity-50 ' + (u.activo ? 'text-red-600' : 'text-green-700')}
-          >
-            {u.activo ? 'Bloquear acceso' : 'Desbloquear acceso'}
-          </button>
+          {u.eliminado_en ? (
+            <p className="text-xs text-gray-400">Eliminado el {formatoFecha(u.eliminado_en)} - no puede volver a entrar.</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={toggleActivo}
+                disabled={accionandoActivo}
+                className={'text-sm hover:underline disabled:opacity-50 ' + (u.activo ? 'text-red-600' : 'text-green-700')}
+              >
+                {u.activo ? 'Bloquear acceso' : 'Desbloquear acceso'}
+              </button>
+              <button
+                onClick={eliminarUsuario}
+                disabled={eliminando}
+                className="text-sm text-red-600 hover:underline disabled:opacity-50"
+              >
+                Eliminar usuario
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -466,6 +547,10 @@ export default function AdminUsuarios() {
   const [tab, setTab] = useState('usuarios'); // 'usuarios' | 'pendientes'
   const [usuarios, setUsuarios] = useState(null);
   const [busqueda, setBusqueda] = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [filtroEstado, setFiltroEstado] = useState('HABILITADO');
+  const [filtroTipoComercio, setFiltroTipoComercio] = useState('');
+  const [filtroTipoCuenta, setFiltroTipoCuenta] = useState('');
   const [email, setEmail] = useState('');
   const [rol, setRol] = useState('CLIENTE');
   const [tipoCuenta, setTipoCuenta] = useState('MARCA_UNICA');
@@ -518,10 +603,27 @@ export default function AdminUsuarios() {
     navigate('/');
   }
 
-  const usuariosFiltrados = (usuarios || []).filter((u) =>
-    u.email.toLowerCase().includes(busqueda.toLowerCase()) ||
-    u.marcas.some((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-  );
+  function estadoUsuario(u) {
+    if (u.eliminado_en) return 'ELIMINADO';
+    return u.activo ? 'HABILITADO' : 'DESHABILITADO';
+  }
+
+  const ESTADO_BADGE = {
+    HABILITADO: { label: 'Habilitado', clase: 'bg-green-100 text-green-700' },
+    DESHABILITADO: { label: 'Deshabilitado', clase: 'bg-red-100 text-red-700' },
+    ELIMINADO: { label: 'Eliminado', clase: 'bg-gray-200 text-gray-600' },
+  };
+
+  const usuariosFiltrados = (usuarios || []).filter((u) => {
+    const coincideBusqueda =
+      u.email.toLowerCase().includes(busqueda.toLowerCase()) ||
+      u.marcas.some((m) => m.nombre.toLowerCase().includes(busqueda.toLowerCase()));
+    if (!coincideBusqueda) return false;
+    if (filtroEstado !== 'TODOS' && estadoUsuario(u) !== filtroEstado) return false;
+    if (filtroTipoComercio && !u.marcas.some((m) => m.tipo_comercio === filtroTipoComercio)) return false;
+    if (filtroTipoCuenta && u.tipo_cuenta !== filtroTipoCuenta) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -581,13 +683,50 @@ export default function AdminUsuarios() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           {usuarios != null && usuarios.length > 0 && (
-            <input
-              type="search"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por email o marca..."
-              className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
-            />
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="search"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar por email o marca..."
+                  className="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+                />
+                <button
+                  onClick={() => setMostrarFiltros((v) => !v)}
+                  className={'text-sm px-3 py-2 rounded-lg border ' + (mostrarFiltros ? 'border-coteja-azul-500 text-coteja-azul-700 bg-coteja-azul-50' : 'border-gray-300 text-gray-600')}
+                >
+                  Filtros
+                </button>
+              </div>
+              {mostrarFiltros && (
+                <div className="flex flex-wrap gap-3 bg-white rounded-xl shadow p-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Estado</label>
+                    <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                      <option value="HABILITADO">Habilitados</option>
+                      <option value="DESHABILITADO">Deshabilitados</option>
+                      <option value="ELIMINADO">Eliminados</option>
+                      <option value="TODOS">Todos</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de comercio</label>
+                    <select value={filtroTipoComercio} onChange={(e) => setFiltroTipoComercio(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                      <option value="">Todos</option>
+                      {TIPOS_COMERCIO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de cuenta</label>
+                    <select value={filtroTipoCuenta} onChange={(e) => setFiltroTipoCuenta(e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                      <option value="">Todos</option>
+                      {TIPOS_CUENTA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {usuarios != null && (
@@ -629,8 +768,8 @@ export default function AdminUsuarios() {
                             )}
                           </td>
                           <td className="p-3 align-top">
-                            <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
-                              {u.activo ? 'Habilitado' : 'Deshabilitado'}
+                            <span className={'text-xs font-semibold px-2 py-0.5 rounded-full ' + ESTADO_BADGE[estadoUsuario(u)].clase}>
+                              {ESTADO_BADGE[estadoUsuario(u)].label}
                             </span>
                           </td>
                           <td className="p-3 align-top">
@@ -668,8 +807,8 @@ export default function AdminUsuarios() {
                     <div key={u.id} className="bg-white rounded-xl shadow p-4 space-y-2 text-sm">
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-medium text-gray-900 break-all">{u.email}</p>
-                        <span className={'shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ' + (u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
-                          {u.activo ? 'Habilitado' : 'Deshabilitado'}
+                        <span className={'shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ' + ESTADO_BADGE[estadoUsuario(u)].clase}>
+                          {ESTADO_BADGE[estadoUsuario(u)].label}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">

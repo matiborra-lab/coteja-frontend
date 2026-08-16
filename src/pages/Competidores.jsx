@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
-import { Campo, Boton, Modal, Leyenda, LogoPlataforma } from '../components/ui';
+import { Campo, Boton, Modal, Leyenda, LogoPlataforma, Toast } from '../components/ui';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { detectarPlataforma, esCucinaLink, esLinkMultiSucursalCucina } from '../utils/plataformas';
 import { sugerirCategoria } from '../utils/categorias';
@@ -61,25 +61,26 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
   const [url, setUrl] = useState('');
   const [urlTienda, setUrlTienda] = useState('');
   const [tipo, setTipo] = useState('');
-  const [archivos, setArchivos] = useState([]); // fotos/PDF opcionales, solo si no hay link
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
-  const [resultado, setResultado] = useState(null); // feedback post-alta cuando la plataforma no se reconoce
 
   async function onSubmit(e) {
     e.preventDefault();
     setError('');
     setCargando(true);
     try {
-      // Sin URL (el cliente prefiere subir la carta en vez de pegar un link)
-      // se manda DESCONOCIDA directo - ver POST /api/competidores en el backend.
+      // Sin URL (el cliente no tiene tienda virtual) se manda DESCONOCIDA
+      // directo - ver POST /api/competidores en el backend. La carta se
+      // sube DESPUES, desde adentro de la tienda ya creada (pestaña
+      // "Actualización") - subirla aca no servía de nada porque igual hacía
+      // falta entrar a la tienda para revisar y vincular cada producto.
       const plataforma = url ? (detectarPlataforma(url) || 'DESCONOCIDA') : 'DESCONOCIDA';
       // Si es Cucina Link y no cargaron un link de sucursal aparte, se usa
       // el mismo link de la tienda: en la gran mayoria de los casos ES el
       // link de sucursal (sirve para la misma cookie de sesion), asi que
       // pedirlo aparte solo hace falta cuando de verdad es distinto.
       const urlTiendaFinal = urlTienda || (esCucinaLink(url) ? url : '');
-      const data = await api.post('/api/competidores', {
+      await api.post('/api/competidores', {
         marca_id: marcaId,
         nombre,
         url: url || null,
@@ -88,66 +89,16 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
         tipo: esPropia ? null : (tipo || null),
         es_propia: !!esPropia,
       });
-
-      // Sin link, si cargaron fotos/PDF de la carta se leen ya mismo aca -
-      // antes había que guardar, buscar la tienda recien creada en la lista,
-      // entrar, e ir a la pestaña Productos para recien ahi subirlas.
-      let itemsLeidos = null;
-      if (data.plataforma === 'DESCONOCIDA' && archivos.length > 0) {
-        try {
-          const dataUrls = await Promise.all(archivos.map(leerComoDataUrl));
-          const subida = await api.post('/api/competidores/' + data.id + '/carta-subida', { archivos: dataUrls });
-          itemsLeidos = subida.items.length;
-        } catch (err) {
-          // La tienda ya se creo - no tiene sentido perder el alta por un
-          // problema puntual leyendo las fotos, solo se avisa y se puede
-          // reintentar la subida desde adentro de la tienda.
-          setError('Se creó la tienda, pero no se pudo leer lo que subiste: ' + err.message);
-        }
-      }
-
-      if (data.plataforma === 'DESCONOCIDA') {
-        setResultado({ ...data, itemsLeidos });
-      } else {
-        setNombre('');
-        setUrl('');
-        setUrlTienda('');
-        setTipo('');
-        setArchivos([]);
-        onAgregado();
-      }
+      setNombre('');
+      setUrl('');
+      setUrlTienda('');
+      setTipo('');
+      onAgregado();
     } catch (err) {
       setError(err.message);
     } finally {
       setCargando(false);
     }
-  }
-
-  if (resultado) {
-    return (
-      <div className="space-y-3 bg-gray-50 rounded-lg p-3">
-        {resultado.itemsLeidos > 0 ? (
-          <Leyenda>
-            Se agregó "{resultado.nombre}" y se leyeron <strong>{resultado.itemsLeidos} productos</strong> de la carta que subiste.
-            Entrá a la tienda para revisarlos y vincularlos con tus artículos.
-          </Leyenda>
-        ) : resultado.itemsImportados > 0 ? (
-          <Leyenda>
-            Se agregó "{resultado.nombre}" y se detectaron <strong>{resultado.itemsImportados} productos</strong> automáticamente.
-            Esta plataforma no está oficialmente integrada, así que esos precios son una foto del momento y no se van a
-            actualizar solos hasta que la revisemos.
-          </Leyenda>
-        ) : (
-          <Leyenda>
-            Se agregó "{resultado.nombre}", pero no hay integración automática con esta plataforma{resultado.url ? ' ni se pudo leer nada del link' : ''}.
-            Entrá a la tienda para subir fotos o un PDF de la carta y leerla con IA.
-          </Leyenda>
-        )}
-        <Boton onClick={() => { setResultado(null); setNombre(''); setUrl(''); setUrlTienda(''); setTipo(''); setArchivos([]); onAgregado(); }}>
-          Listo
-        </Boton>
-      </div>
-    );
   }
 
   return (
@@ -184,25 +135,9 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
       )}
 
       {!url.trim() && (
-        <>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <div className="flex-1 h-px bg-gray-200" />
-            o
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subí fotos o un PDF de la carta (opcional)</label>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              multiple
-              onChange={(e) => setArchivos([...e.target.files])}
-              className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-coteja-azul-50 file:text-coteja-azul-700 file:text-sm file:font-medium hover:file:bg-coteja-azul-100"
-            />
-            <Leyenda>La leemos con IA apenas guardes y va a quedar lista para revisar y vincular con tus artículos.</Leyenda>
-          </div>
-        </>
+        <Leyenda>
+          Si la tienda no tiene tienda virtual, creá la tienda y después subí los archivos de su carta para que nuestra IA la pueda leer.
+        </Leyenda>
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -1234,7 +1169,7 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCer
   );
 }
 
-function TiendaCard({ tienda, vinculados, onClick, destacada }) {
+function TiendaCard({ tienda, vinculados, onClick, destacada, nueva }) {
   const primeros = vinculados.slice(0, 2);
   const restantes = vinculados.length - primeros.length;
 
@@ -1253,6 +1188,7 @@ function TiendaCard({ tienda, vinculados, onClick, destacada }) {
             <p className="font-medium text-gray-900">
               {tienda.nombre}
               {tienda.tipo && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded align-middle">{tienda.tipo}</span>}
+              {nueva && <span className="ml-2 text-xs bg-coteja-verde-100 text-coteja-verde-800 px-1.5 py-0.5 rounded align-middle font-semibold">NUEVO</span>}
             </p>
             <p className="text-xs text-gray-500">{tienda.plataforma}</p>
           </div>
@@ -1287,6 +1223,7 @@ export default function Competidores() {
   const [filtroTipos, setFiltroTipos] = useState([]);
   const [filtroPlataformas, setFiltroPlataformas] = useState([]);
   const [filtroCompetidores, setFiltroCompetidores] = useState([]);
+  const [toast, setToast] = useState('');
 
   async function cargar() {
     const [tiendasData, panel] = await Promise.all([
@@ -1364,7 +1301,7 @@ export default function Competidores() {
             marcaId={marcaActualId}
             esPropia
             tiposExistentes={[]}
-            onAgregado={() => { setMostrarFormMiTienda(false); cargar(); }}
+            onAgregado={() => { setMostrarFormMiTienda(false); cargar(); setToast('Mi tienda guardada.'); }}
             onCancelar={() => setMostrarFormMiTienda(false)}
           />
         ) : (
@@ -1386,7 +1323,7 @@ export default function Competidores() {
           <FormAgregarTienda
             marcaId={marcaActualId}
             tiposExistentes={tiposExistentes}
-            onAgregado={() => { setMostrarFormNuevaTienda(false); cargar(); }}
+            onAgregado={() => { setMostrarFormNuevaTienda(false); cargar(); setToast('Tienda creada.'); }}
           />
         </div>
       )}
@@ -1508,6 +1445,7 @@ export default function Competidores() {
               key={c.id}
               tienda={c}
               vinculados={(productosCompetenciaPorTienda[c.id] || []).filter((p) => p.vinculo_id)}
+              nueva={(productosCompetenciaPorTienda[c.id] || []).length === 0}
               onClick={() => setTiendaAbierta(c)}
             />
           ))}
@@ -1525,6 +1463,8 @@ export default function Competidores() {
           onTiendaActualizada={(actualizada) => { setTiendaAbierta(actualizada); cargar(); }}
         />
       )}
+
+      {toast && <Toast mensaje={toast} onCerrar={() => setToast('')} />}
     </div>
   );
 }

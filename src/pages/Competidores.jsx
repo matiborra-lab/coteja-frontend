@@ -1022,8 +1022,8 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado, onEliminado }) 
   );
 }
 
-function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCerrar, onCambioGlobal, onTiendaActualizada }) {
-  const [tab, setTab] = useState('productos');
+function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, tabInicial, onCerrar, onCambioGlobal, onTiendaActualizada }) {
+  const [tab, setTab] = useState(tabInicial || 'productos');
   const [productos, setProductos] = useState(null);
   const [mostrarForm, setMostrarForm] = useState(false);
 
@@ -1161,6 +1161,11 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, onCer
                       <span className="text-coteja-azul-800">{p.producto_propio_nombre}</span>
                       <span className="text-gray-400"> · </span>
                       <PrecioEditableProducto producto={p} onGuardado={() => { cargarProductos(); onCambioGlobal(); }} />
+                      {p.estado && p.estado !== 'OK' && (
+                        <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                          No se encuentra{formatoFechaHora(p.ultima_actualizacion) ? ' desde el ' + formatoFechaHora(p.ultima_actualizacion) : ''}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <VincularSelect producto={p} productosPropios={productosPropios} onVinculado={() => { cargarProductos(); onCambioGlobal(); }} />
@@ -1263,14 +1268,16 @@ export default function Competidores() {
     cargar();
   }, [marcaActualId]);
 
-  // Deep-link desde el banner de incidencias ("Ver →" en Layout.jsx) - abre
-  // directo la tienda en cuestion en cuanto termino de cargar la lista.
+  // Deep-link desde el banner de incidencias (Layout.jsx) o el circulo de
+  // aviso del Panel (Panel.jsx) - abre directo la tienda en cuestion, y si
+  // vino con &tab= la pestaña indicada, en cuanto termino de cargar la lista.
   useEffect(() => {
     const idParam = searchParams.get('tienda');
     if (!idParam || !tiendas) return;
     const t = tiendas.find((t) => String(t.id) === idParam);
     if (t) setTiendaAbierta(t);
   }, [searchParams, tiendas]);
+  const tabDeepLink = searchParams.get('tab');
 
   const miTienda = useMemo(() => tiendas?.find((t) => t.es_propia) || null, [tiendas]);
   const competidores = useMemo(() => (tiendas || []).filter((t) => !t.es_propia), [tiendas]);
@@ -1476,6 +1483,7 @@ export default function Competidores() {
           marcaId={marcaActualId}
           tiposExistentes={tiposExistentes}
           productosPropios={productosPropios}
+          tabInicial={tabDeepLink}
           onCerrar={() => setTiendaAbierta(null)}
           onCambioGlobal={cargar}
           onTiendaActualizada={(actualizada) => { setTiendaAbierta(actualizada); cargar(); }}

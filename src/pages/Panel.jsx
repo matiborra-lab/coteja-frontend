@@ -45,6 +45,21 @@ function formatoFechaCorta(fechaISO) {
   return String(Number(dia)) + '/' + String(Number(mes));
 }
 
+// Circulo de aviso (mismo amber que "promo") en vez del texto "revisar" -
+// lleva directo a "Artículos vinculados" de esa tienda, donde se ve desde
+// cuándo dejó de encontrarse el producto.
+function AvisoIncidencia({ competidorId }) {
+  return (
+    <Link
+      to={'/competidores?tienda=' + competidorId + '&tab=vinculados'}
+      title="Este producto dejó de encontrarse - tocá para revisarlo"
+      className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold leading-none align-middle hover:bg-amber-200"
+    >
+      !
+    </Link>
+  );
+}
+
 function Diferencia({ producto }) {
   if (producto.diferencia_vs_promedio == null) return <span className="text-gray-400">-</span>;
   const positiva = Number(producto.diferencia_vs_promedio) > 0;
@@ -999,9 +1014,7 @@ export default function Panel() {
                                 {c.en_promocion && (
                                   <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">promo</span>
                                 )}
-                                {c.con_incidencia && (
-                                  <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">revisar</span>
-                                )}
+                                {c.con_incidencia && <AvisoIncidencia competidorId={col.id} />}
                               </>
                             ) : (
                               <span className="text-gray-300">-</span>
@@ -1051,9 +1064,7 @@ export default function Panel() {
                             {c.en_promocion && (
                               <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">promo</span>
                             )}
-                            {c.con_incidencia && (
-                              <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">revisar</span>
-                            )}
+                            {c.con_incidencia && <AvisoIncidencia competidorId={col.id} />}
                           </>
                         ) : (
                           <span className="text-gray-300">-</span>

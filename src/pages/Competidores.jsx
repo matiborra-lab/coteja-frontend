@@ -355,6 +355,19 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
   const [subiendoArchivos, setSubiendoArchivos] = useState(false);
   const [precioManual, setPrecioManual] = useState('');
   const [actualizandoTodos, setActualizandoTodos] = useState(false);
+  const [tardandoMucho, setTardandoMucho] = useState(false);
+
+  // Algunas plataformas (las que exponen precios de variantes/adicionales
+  // solo producto por producto) tardan legitimamente bastante en la primera
+  // lectura - este aviso evita que en una demo en vivo parezca que se colgo.
+  useEffect(() => {
+    if (estado !== 'cargando') {
+      setTardandoMucho(false);
+      return;
+    }
+    const timer = setTimeout(() => setTardandoMucho(true), 15000);
+    return () => clearTimeout(timer);
+  }, [estado]);
 
   // MANUAL/MAPEO_IA no tienen integracion viva atras (carga a mano, o leido
   // de una foto/PDF por IA) - por las dudas el mapeo automatico se haya
@@ -585,9 +598,14 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
 
   if (estado === 'cargando') {
     return (
-      <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-500">
-        <span className="inline-block w-4 h-4 border-2 border-coteja-azul-300 border-t-coteja-azul-800 rounded-full animate-spin" />
-        Leyendo la carta...
+      <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-gray-500">
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-4 h-4 border-2 border-coteja-azul-300 border-t-coteja-azul-800 rounded-full animate-spin" />
+          Leyendo la carta...
+        </div>
+        {tardandoMucho && (
+          <p className="text-xs text-gray-400">Algunas cartas pueden tardar un poco más.</p>
+        )}
       </div>
     );
   }

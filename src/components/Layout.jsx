@@ -19,7 +19,7 @@ const linkClassDrawer = ({ isActive }) =>
 
 export default function Layout() {
   const { usuario, logout } = useAuth();
-  const { marcas, marcaActual, marcaActualId, setMarcaActualId } = useMarca();
+  const { marcas, marcaActual, marcaActualId, setMarcaActualId, recargarMarcas } = useMarca();
   const navigate = useNavigate();
   const location = useLocation();
   const [incidencias, setIncidencias] = useState([]);
@@ -51,6 +51,7 @@ export default function Layout() {
 
   function volverAUsuarios() {
     setMarcaActualId(null);
+    recargarMarcas(null);
     navigate('/admin');
   }
 

@@ -25,7 +25,7 @@ function Avatar({ marca, tamano }) {
 // agregan secciones nuevas al nav.
 export default function CuentaMenu() {
   const { usuario, logout } = useAuth();
-  const { marcas, marcaActual, marcaActualId, setMarcaActualId } = useMarca();
+  const { marcas, marcaActual, marcaActualId, setMarcaActualId, recargarMarcas } = useMarca();
   const navigate = useNavigate();
   const [abierto, setAbierto] = useState(false);
   const ref = useRef(null);
@@ -40,6 +40,7 @@ export default function CuentaMenu() {
 
   function volverAUsuarios() {
     setMarcaActualId(null);
+    recargarMarcas(null);
     navigate('/admin');
     setAbierto(false);
   }

@@ -295,7 +295,7 @@ function VerUsuarioModal({ usuario, onClose, onActualizado }) {
 
   async function verPanel(marcaId) {
     setMarcaActualId(marcaId);
-    await recargarMarcas();
+    await recargarMarcas(marcaId);
     navigate('/');
   }
 
@@ -600,7 +600,7 @@ export default function AdminUsuarios() {
 
   async function verPanel(marcaId) {
     setMarcaActualId(marcaId);
-    await recargarMarcas();
+    await recargarMarcas(marcaId);
     navigate('/');
   }
 

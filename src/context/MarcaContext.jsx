@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { useAuth } from './AuthContext';
 
@@ -10,7 +10,18 @@ export function MarcaProvider({ children }) {
   const [marcaActualId, setMarcaActualId] = useState(null);
   const [cargando, setCargando] = useState(true);
 
-  const cargarMarcas = useCallback(async () => {
+  // Para un admin, /api/mis-marcas necesita saber en que marca esta parado
+  // para devolver solo las hermanas de ese cliente (ver backend). Un ref en
+  // vez de sumar marcaActualId a las dependencias de cargarMarcas evita que
+  // cambiar de marca dispare un refetch automatico por el useEffect de mas
+  // abajo - solo se usa como valor de respaldo cuando recargarMarcas() se
+  // llama sin argumentos.
+  const marcaActualIdRef = useRef(null);
+  useEffect(() => {
+    marcaActualIdRef.current = marcaActualId;
+  }, [marcaActualId]);
+
+  const cargarMarcas = useCallback(async (marcaIdParaContexto) => {
     // Mientras AuthContext todavia no resolvio quien es el usuario, "usuario"
     // esta transitoriamente en null - si tratasemos eso como "sin marcas" ya
     // quedaria cargando=false por un instante, y un guard como RequireMarca
@@ -25,7 +36,12 @@ export function MarcaProvider({ children }) {
     }
     setCargando(true);
     try {
-      const data = await api.get('/api/mis-marcas');
+      // undefined = "no me dijeron nada, uso la marca actual" (recargarMarcas()
+      // suelto); null explicito = "sin contexto de marca" (volver a Usuarios) -
+      // por eso no se puede usar ?? aca, pisaria el null a proposito.
+      const marcaId = marcaIdParaContexto !== undefined ? marcaIdParaContexto : marcaActualIdRef.current;
+      const query = usuario.rol === 'ADMIN' && marcaId ? `?marcaId=${marcaId}` : '';
+      const data = await api.get('/api/mis-marcas' + query);
       setMarcas(data);
       setMarcaActualId((actual) => {
         if (actual && data.some((m) => m.id === actual)) return actual;

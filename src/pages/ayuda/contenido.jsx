@@ -320,11 +320,11 @@ export const SECCIONES = [
         pasos: [
           {
             titulo: 'Se leen y actualizan solas',
-            texto: 'Pedix, Cucina Link, másDelivery, FUDO, Cartanube, Bistrosoft, Maxirest, Tucán y Toteat. Si el competidor usa alguna de estas, alcanza con pegar el link de su carta.',
+            texto: 'Pedix, Cucina Link (incluida su versión de solo carta, sin pedido activo), másDelivery, FUDO, Cartanube, Bistrosoft, Maxirest, Tucán, Toteat y Grow Brands. Si el competidor usa alguna de estas, alcanza con pegar el link de su carta.',
             mock: (
               <Mock>
                 <div className="flex flex-wrap gap-1.5">
-                  {['Pedix', 'Cucina Link', 'másDelivery', 'FUDO', 'Cartanube', 'Bistrosoft', 'Maxirest', 'Tucán', 'Toteat'].map((p) => (
+                  {['Pedix', 'Cucina Link', 'másDelivery', 'FUDO', 'Cartanube', 'Bistrosoft', 'Maxirest', 'Tucán', 'Toteat', 'Grow Brands'].map((p) => (
                     <MBadge key={p} color="verde">{p}</MBadge>
                   ))}
                 </div>

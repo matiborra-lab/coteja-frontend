@@ -13,6 +13,7 @@ const DOMINIOS = [
   { patron: /restonline\.com\.ar/i, plataforma: 'Resto Online' },
   { patron: /tucan\.la|loveat\.la/i, plataforma: 'Tucán / Loveat' },
   { patron: /toteat\.shop/i, plataforma: 'Toteat' },
+  { patron: /growbrands\.net/i, plataforma: 'Grow Brands' },
 ];
 
 export function detectarPlataforma(url) {

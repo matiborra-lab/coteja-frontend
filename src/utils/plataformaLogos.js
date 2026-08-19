@@ -27,6 +27,7 @@ const LOGOS_POR_CLAVE_NORMALIZADA = {
   TUCAN: '/plataformas/Tucan.png',
   TUCANLOVEAT: '/plataformas/Tucan.png',
   TOTEAT: '/plataformas/Toteat.png',
+  GROWBRANDS: '/plataformas/GrowBrands.png',
 };
 
 export function logoDePlataforma(nombre) {

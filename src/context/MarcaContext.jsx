@@ -18,7 +18,18 @@ export function MarcaProvider({ children }) {
   // la pagina actual) - eso se lleva puesto cualquier estado local en
   // pantalla (ej: un mensaje de "guardado" o un panel desplegado).
   const [cargandoInicial, setCargandoInicial] = useState(true);
-  const resueltoAlgunaVezRef = useRef(false);
+  // Guarda para que USUARIO ya se resolvio cargandoInicial una vez (null =
+  // "sin sesion"). Tiene que ser por usuario, no un booleano global: si
+  // fuera global, la PRIMERA vez que este Provider ve "sin usuario" (por
+  // ej. en /login, antes de que alguien inicie sesion) ya lo marcaria
+  // resuelto para siempre - despues, un login exitoso cambia "usuario" pero
+  // cargandoInicial ya quedo en false, entonces RequireMarca no espera el
+  // fetch real y lee marcas=[] (el valor viejo) como si fuera definitivo,
+  // mandando al recien logueado a /crear-marca aunque ya tenga marca. Al
+  // guardar CUAL usuario ya se resolvio, un login (null -> usuario real)
+  // se reconoce como una resolucion nueva y vuelve a bloquear con
+  // cargandoInicial hasta que el fetch de esa sesion realmente termine.
+  const resueltoParaRef = useRef(undefined);
   // Si /api/mis-marcas falla (blip de red, cold start del backend en
   // Railway, etc) NO hay que confundir "no pude confirmar cuantas marcas
   // tiene" con "tiene cero marcas" - lo segundo manda a RequireMarca a
@@ -49,15 +60,21 @@ export function MarcaProvider({ children }) {
     // podria alcanzar a redirigir a /crear-marca antes de tiempo. Hay que
     // esperar a que termine de cargar el auth antes de decidir cualquier cosa.
     if (cargandoAuth) return;
+    const claveUsuario = usuario?.id ?? null;
+    // Si esta resolucion es para un usuario distinto del que ya habiamos
+    // resuelto (tipicamente: login nuevo tras estar deslogueado), hay que
+    // volver a bloquear con cargandoInicial hasta que termine - ver el
+    // comentario de resueltoParaRef mas arriba.
+    if (resueltoParaRef.current !== claveUsuario) {
+      setCargandoInicial(true);
+    }
     if (!usuario) {
       setMarcas([]);
       setMarcaActualId(null);
       setCargando(false);
       setError(null);
-      if (!resueltoAlgunaVezRef.current) {
-        resueltoAlgunaVezRef.current = true;
-        setCargandoInicial(false);
-      }
+      resueltoParaRef.current = claveUsuario;
+      setCargandoInicial(false);
       return;
     }
     setCargando(true);
@@ -93,10 +110,8 @@ export function MarcaProvider({ children }) {
       }
     }
     setCargando(false);
-    if (!resueltoAlgunaVezRef.current) {
-      resueltoAlgunaVezRef.current = true;
-      setCargandoInicial(false);
-    }
+    resueltoParaRef.current = claveUsuario;
+    setCargandoInicial(false);
   }, [usuario, cargandoAuth]);
 
   useEffect(() => {

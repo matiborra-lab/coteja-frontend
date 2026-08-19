@@ -143,6 +143,7 @@ export default function Layout() {
               {usuario.rol !== 'ADMIN' && (
                 <NavLink to="/mi-cuenta" className={linkClassDrawer}>Mi cuenta</NavLink>
               )}
+              <NavLink to="/ayuda" className={linkClassDrawer}>Centro de ayuda</NavLink>
               {marcas.length > 1 ? (
                 <select
                   value={marcaActualId || ''}

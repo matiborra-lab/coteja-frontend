@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import SoporteFlotante from '../components/SoporteFlotante';
 import { SECCIONES, todosLosArticulos } from './ayuda/contenido';
 
 function Indice() {
@@ -99,5 +100,10 @@ function Articulo({ articuloId }) {
 
 export default function Ayuda() {
   const { articuloId } = useParams();
-  return articuloId ? <Articulo articuloId={articuloId} /> : <Indice />;
+  return (
+    <>
+      {articuloId ? <Articulo articuloId={articuloId} /> : <Indice />}
+      <SoporteFlotante />
+    </>
+  );
 }

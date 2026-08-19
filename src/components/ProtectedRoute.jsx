@@ -19,8 +19,8 @@ export function RequireAuth() {
 // necesita ninguna. Usar DENTRO de <RequireAuth>.
 export function RequireMarca() {
   const { usuario } = useAuth();
-  const { marcas, cargando } = useMarca();
-  if (cargando) return <Cargando />;
+  const { marcas, cargandoInicial } = useMarca();
+  if (cargandoInicial) return <Cargando />;
   if (usuario.rol !== 'ADMIN' && marcas.length === 0) return <Navigate to="/crear-marca" replace />;
   return <Outlet />;
 }

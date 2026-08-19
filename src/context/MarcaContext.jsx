@@ -9,6 +9,16 @@ export function MarcaProvider({ children }) {
   const [marcas, setMarcas] = useState([]);
   const [marcaActualId, setMarcaActualId] = useState(null);
   const [cargando, setCargando] = useState(true);
+  // cargando pasa a true en CADA refetch (crear/editar/borrar una marca
+  // vuelve a llamar recargarMarcas) - pero RequireMarca (ver ProtectedRoute.jsx)
+  // solo necesita bloquear la pantalla entera la PRIMERA vez, mientras
+  // todavia no sabe si el cliente tiene alguna marca o hay que mandarlo a
+  // /crear-marca. Si RequireMarca usara "cargando" a secas, cada refetch
+  // desmontaria por un instante TODO lo que cuelga del Outlet (Layout,
+  // la pagina actual) - eso se lleva puesto cualquier estado local en
+  // pantalla (ej: un mensaje de "guardado" o un panel desplegado).
+  const [cargandoInicial, setCargandoInicial] = useState(true);
+  const resueltoAlgunaVezRef = useRef(false);
 
   // Para un admin, /api/mis-marcas necesita saber en que marca esta parado
   // para devolver solo las hermanas de ese cliente (ver backend). Un ref en
@@ -32,6 +42,10 @@ export function MarcaProvider({ children }) {
       setMarcas([]);
       setMarcaActualId(null);
       setCargando(false);
+      if (!resueltoAlgunaVezRef.current) {
+        resueltoAlgunaVezRef.current = true;
+        setCargandoInicial(false);
+      }
       return;
     }
     setCargando(true);
@@ -53,6 +67,10 @@ export function MarcaProvider({ children }) {
       });
     } finally {
       setCargando(false);
+      if (!resueltoAlgunaVezRef.current) {
+        resueltoAlgunaVezRef.current = true;
+        setCargandoInicial(false);
+      }
     }
   }, [usuario, cargandoAuth]);
 
@@ -64,7 +82,7 @@ export function MarcaProvider({ children }) {
 
   return (
     <MarcaContext.Provider
-      value={{ marcas, marcaActual, marcaActualId, setMarcaActualId, cargando, recargarMarcas: cargarMarcas }}
+      value={{ marcas, marcaActual, marcaActualId, setMarcaActualId, cargando, cargandoInicial, recargarMarcas: cargarMarcas }}
     >
       {children}
     </MarcaContext.Provider>

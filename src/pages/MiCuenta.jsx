@@ -3,8 +3,27 @@ import { useMarca } from '../context/MarcaContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { Campo, Boton } from '../components/ui';
+import { TIPOS_COMERCIO } from '../utils/tiposComercio';
 
 const MAX_LOGO_BYTES = 800 * 1024;
+
+function SelectorTipoComercio({ value, onChange }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de comercio</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+      >
+        <option value="">Elegí uno...</option>
+        {TIPOS_COMERCIO.map((t) => (
+          <option key={t.value} value={t.value}>{t.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 function SeccionMarca() {
   const { marcaActual, recargarMarcas } = useMarca();
@@ -152,44 +171,68 @@ function SeccionPassword() {
 
 const LIMITE_MARCAS_MULTIMARCA = 3;
 
-function SeccionMisMarcas() {
-  const { marcas, recargarMarcas, setMarcaActualId } = useMarca();
+// Fila de "Mis marcas": colapsada muestra logo + nombre; "Editar" despliega
+// abajo el mismo formulario de datos que tiene SeccionMarca (nombre, tipo de
+// comercio, logo, contacto, mail) mas "Eliminar marca" - todo por marca, sin
+// tener que cambiar de marca actual para tocar sus datos.
+function MarcaFila({ marca, expandido, onToggle }) {
+  const { recargarMarcas, setMarcaActualId } = useMarca();
+  const [nombre, setNombre] = useState(marca.nombre);
+  const [tipoComercio, setTipoComercio] = useState(marca.tipo_comercio || '');
+  const [emailAlertas, setEmailAlertas] = useState(marca.email_alertas || '');
+  const [telefono, setTelefono] = useState(marca.telefono || '');
+  const [logoDataUrl, setLogoDataUrl] = useState(null);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
-  const [borrandoId, setBorrandoId] = useState(null);
-  const [agregando, setAgregando] = useState(false);
-  const [nombreNuevo, setNombreNuevo] = useState('');
-  const [creando, setCreando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [borrando, setBorrando] = useState(false);
 
-  const enElLimite = marcas.length >= LIMITE_MARCAS_MULTIMARCA;
+  useEffect(() => {
+    if (!expandido) return;
+    setNombre(marca.nombre);
+    setTipoComercio(marca.tipo_comercio || '');
+    setEmailAlertas(marca.email_alertas || '');
+    setTelefono(marca.telefono || '');
+    setLogoDataUrl(null);
+    setError('');
+    setMensaje('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandido, marca.id]);
 
-  async function agregar(e) {
+  function onLogoChange(e) {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setError('');
+    if (archivo.size > MAX_LOGO_BYTES) {
+      setError('El logo pesa demasiado - subí uno de menos de 800KB.');
+      e.target.value = '';
+      return;
+    }
+    const lector = new FileReader();
+    lector.onload = () => setLogoDataUrl(lector.result);
+    lector.readAsDataURL(archivo);
+  }
+
+  async function guardar(e) {
     e.preventDefault();
     setError('');
     setMensaje('');
-    setCreando(true);
+    setGuardando(true);
     try {
-      const nueva = await api.post('/api/marcas', { nombre: nombreNuevo });
-      setMarcaActualId(nueva.id);
-      // recargarMarcas() prende "cargando" en el contexto mientras trae la
-      // lista de vuelta - eso desmonta un instante todo lo que cuelga de
-      // <RequireMarca> (ver ProtectedRoute.jsx), asi que cualquier estado
-      // local de este componente (como un mensaje de "creada") se pierde
-      // apenas se remonta. En cambio, llevar el scroll arriba SI sobrevive
-      // (es window, no React) y deja bien claro que ahora estas parado en
-      // la marca nueva ("Datos de...").
-      await recargarMarcas(nueva.id);
-      setNombreNuevo('');
-      setAgregando(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const body = { nombre, tipo_comercio: tipoComercio || null, email_alertas: emailAlertas || null, telefono: telefono || null };
+      if (logoDataUrl) body.logo_url = logoDataUrl;
+      await api.patch('/api/marcas/' + marca.id, body);
+      await recargarMarcas();
+      setLogoDataUrl(null);
+      setMensaje('Datos guardados.');
     } catch (err) {
       setError(err.message);
     } finally {
-      setCreando(false);
+      setGuardando(false);
     }
   }
 
-  async function borrar(marca) {
+  async function borrar() {
     const confirmacion = prompt(
       'Esto borra "' + marca.nombre + '" y TODO lo suyo (productos, competidores, alertas, historial) para siempre.\n' +
       'Escribí el nombre de la marca para confirmar:'
@@ -199,17 +242,119 @@ function SeccionMisMarcas() {
       return;
     }
     setError('');
-    setMensaje('');
-    setBorrandoId(marca.id);
+    setBorrando(true);
     try {
       await api.del('/api/marcas/' + marca.id);
-      setMensaje('Marca "' + marca.nombre + '" eliminada.');
       setMarcaActualId(null);
       await recargarMarcas();
     } catch (err) {
       setError(err.message);
+      setBorrando(false);
+    }
+  }
+
+  const logoParaMostrar = logoDataUrl || marca.logo_url;
+
+  return (
+    <li className="py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {marca.logo_url ? (
+            <img src={marca.logo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200 shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded bg-gray-100 shrink-0" />
+          )}
+          <span className="text-sm text-gray-900 truncate">{marca.nombre}</span>
+        </div>
+        <button onClick={onToggle} className="text-xs text-coteja-azul-700 hover:underline shrink-0">
+          {expandido ? 'Cerrar' : 'Editar'}
+        </button>
+      </div>
+
+      {expandido && (
+        <form onSubmit={guardar} className="mt-3 space-y-3 bg-gray-50 rounded-lg p-3">
+          <div className="flex items-center gap-4">
+            {logoParaMostrar ? (
+              <img src={logoParaMostrar} alt="Logo" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+            ) : (
+              <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                Sin logo
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Logo de la marca</label>
+              <input type="file" accept="image/*" onChange={onLogoChange} className="text-sm" />
+              <p className="text-xs text-gray-400 mt-1">Menos de 800KB.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Campo label="Nombre de la marca" required value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            <SelectorTipoComercio value={tipoComercio} onChange={setTipoComercio} />
+            <Campo
+              label="Mail para recibir alertas (opcional)"
+              type="email"
+              value={emailAlertas}
+              onChange={(e) => setEmailAlertas(e.target.value)}
+              placeholder="ej: alertas@mimarca.com"
+            />
+            <Campo
+              label="Número de contacto (opcional)"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder="ej: 3511234567"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}
+
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={borrar}
+              disabled={borrando}
+              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+            >
+              {borrando ? 'Eliminando...' : 'Eliminar marca'}
+            </button>
+            <Boton type="submit" cargando={guardando}>{guardando ? 'Guardando...' : 'Guardar cambios'}</Boton>
+          </div>
+        </form>
+      )}
+    </li>
+  );
+}
+
+function SeccionMisMarcas() {
+  const { marcas, recargarMarcas, setMarcaActualId } = useMarca();
+  const [expandidoId, setExpandidoId] = useState(null);
+  const [error, setError] = useState('');
+  const [agregando, setAgregando] = useState(false);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+  const [creando, setCreando] = useState(false);
+
+  const enElLimite = marcas.length >= LIMITE_MARCAS_MULTIMARCA;
+
+  async function agregar(e) {
+    e.preventDefault();
+    setError('');
+    setCreando(true);
+    try {
+      const nueva = await api.post('/api/marcas', { nombre: nombreNuevo });
+      setMarcaActualId(nueva.id);
+      await recargarMarcas(nueva.id);
+      setNombreNuevo('');
+      setAgregando(false);
+      // Con el fix de cargandoInicial en MarcaContext, este estado local ya
+      // sobrevive al refetch - abrimos directo el panel de la marca recien
+      // creada para que el cliente termine de completarla (tipo de comercio,
+      // logo, etc) sin tener que buscarla en la lista.
+      setExpandidoId(nueva.id);
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setBorrandoId(null);
+      setCreando(false);
     }
   }
 
@@ -218,19 +363,14 @@ function SeccionMisMarcas() {
       <h2 className="font-medium text-gray-900">Mis marcas</h2>
       <p className="text-xs text-gray-400">Tu plan permite hasta {LIMITE_MARCAS_MULTIMARCA}. Borrar una es definitivo.</p>
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}
       <ul className="divide-y divide-gray-100">
         {marcas.map((m) => (
-          <li key={m.id} className="py-2 flex items-center justify-between text-sm">
-            <span className="text-gray-900">{m.nombre}</span>
-            <button
-              onClick={() => borrar(m)}
-              disabled={borrandoId === m.id}
-              className="text-xs text-red-600 hover:underline disabled:opacity-50"
-            >
-              Eliminar
-            </button>
-          </li>
+          <MarcaFila
+            key={m.id}
+            marca={m}
+            expandido={expandidoId === m.id}
+            onToggle={() => setExpandidoId((actual) => (actual === m.id ? null : m.id))}
+          />
         ))}
       </ul>
 
@@ -262,13 +402,22 @@ function SeccionMisMarcas() {
 
 export default function MiCuenta() {
   const { usuario } = useAuth();
+  const esMultimarca = usuario.tipo_cuenta === 'MULTIMARCA';
 
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-xl font-semibold text-gray-900">Mi cuenta</h1>
-      <SeccionMarca />
-      <SeccionPassword />
-      {usuario.tipo_cuenta === 'MULTIMARCA' && <SeccionMisMarcas />}
+      {esMultimarca ? (
+        <>
+          <SeccionPassword />
+          <SeccionMisMarcas />
+        </>
+      ) : (
+        <>
+          <SeccionMarca />
+          <SeccionPassword />
+        </>
+      )}
     </div>
   );
 }

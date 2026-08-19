@@ -1,8 +1,17 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { SECCIONES, todosLosArticulos } from './ayuda/contenido';
 
 function Indice() {
+  const { usuario } = useAuth();
+  const secciones = useMemo(
+    () => SECCIONES
+      .map((s) => ({ ...s, articulos: s.articulos.filter((a) => !a.soloMultimarca || usuario.tipo_cuenta === 'MULTIMARCA') }))
+      .filter((s) => s.articulos.length > 0),
+    [usuario.tipo_cuenta]
+  );
+
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div>
@@ -13,7 +22,7 @@ function Indice() {
         </p>
       </div>
 
-      {SECCIONES.map((seccion) => (
+      {secciones.map((seccion) => (
         <div key={seccion.id}>
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{seccion.titulo}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -35,7 +44,8 @@ function Indice() {
 }
 
 function Articulo({ articuloId }) {
-  const lista = useMemo(() => todosLosArticulos(), []);
+  const { usuario } = useAuth();
+  const lista = useMemo(() => todosLosArticulos(usuario.tipo_cuenta), [usuario.tipo_cuenta]);
   const idx = lista.findIndex((a) => a.id === articuloId);
   const articulo = lista[idx];
   const anterior = idx > 0 ? lista[idx - 1] : null;

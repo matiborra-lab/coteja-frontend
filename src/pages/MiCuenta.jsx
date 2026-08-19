@@ -150,11 +150,44 @@ function SeccionPassword() {
   );
 }
 
+const LIMITE_MARCAS_MULTIMARCA = 3;
+
 function SeccionMisMarcas() {
   const { marcas, recargarMarcas, setMarcaActualId } = useMarca();
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [borrandoId, setBorrandoId] = useState(null);
+  const [agregando, setAgregando] = useState(false);
+  const [nombreNuevo, setNombreNuevo] = useState('');
+  const [creando, setCreando] = useState(false);
+
+  const enElLimite = marcas.length >= LIMITE_MARCAS_MULTIMARCA;
+
+  async function agregar(e) {
+    e.preventDefault();
+    setError('');
+    setMensaje('');
+    setCreando(true);
+    try {
+      const nueva = await api.post('/api/marcas', { nombre: nombreNuevo });
+      setMarcaActualId(nueva.id);
+      // recargarMarcas() prende "cargando" en el contexto mientras trae la
+      // lista de vuelta - eso desmonta un instante todo lo que cuelga de
+      // <RequireMarca> (ver ProtectedRoute.jsx), asi que cualquier estado
+      // local de este componente (como un mensaje de "creada") se pierde
+      // apenas se remonta. En cambio, llevar el scroll arriba SI sobrevive
+      // (es window, no React) y deja bien claro que ahora estas parado en
+      // la marca nueva ("Datos de...").
+      await recargarMarcas(nueva.id);
+      setNombreNuevo('');
+      setAgregando(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreando(false);
+    }
+  }
 
   async function borrar(marca) {
     const confirmacion = prompt(
@@ -183,7 +216,7 @@ function SeccionMisMarcas() {
   return (
     <div className="bg-white rounded-xl shadow p-4 space-y-3">
       <h2 className="font-medium text-gray-900">Mis marcas</h2>
-      <p className="text-xs text-gray-400">Tu plan permite hasta 3. Borrar una es definitivo.</p>
+      <p className="text-xs text-gray-400">Tu plan permite hasta {LIMITE_MARCAS_MULTIMARCA}. Borrar una es definitivo.</p>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}
       <ul className="divide-y divide-gray-100">
@@ -200,6 +233,29 @@ function SeccionMisMarcas() {
           </li>
         ))}
       </ul>
+
+      {agregando ? (
+        <form onSubmit={agregar} className="flex items-center gap-2 pt-1">
+          <input
+            autoFocus
+            required
+            value={nombreNuevo}
+            onChange={(e) => setNombreNuevo(e.target.value)}
+            placeholder="Nombre de la nueva marca"
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+          />
+          <Boton type="submit" cargando={creando}>{creando ? 'Creando...' : 'Crear'}</Boton>
+          <button type="button" onClick={() => { setAgregando(false); setNombreNuevo(''); }} className="text-xs text-gray-400 hover:text-gray-600">
+            Cancelar
+          </button>
+        </form>
+      ) : enElLimite ? (
+        <p className="text-xs text-gray-400 pt-1">Ya tenés el máximo de marcas de tu plan.</p>
+      ) : (
+        <button onClick={() => setAgregando(true)} className="text-sm text-coteja-azul-700 hover:underline">
+          + Agregar marca
+        </button>
+      )}
     </div>
   );
 }

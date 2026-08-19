@@ -82,6 +82,64 @@ export const SECCIONES = [
           },
         ],
       },
+      {
+        id: 'crear-marca-multimarca',
+        titulo: 'Cómo crear una marca',
+        resumen: 'Tu plan Multimarca te permite manejar hasta 3 marcas distintas desde la misma cuenta.',
+        soloMultimarca: true,
+        pasos: [
+          {
+            titulo: 'Andá a "Mi cuenta" → "Mis marcas"',
+            texto: 'Al final de "Mi cuenta" vas a encontrar la sección "Mis marcas", con el listado de las que ya tenés y un botón para agregar otra.',
+            mock: (
+              <Mock ancho="max-w-xs">
+                <p className="text-xs font-medium text-gray-900 mb-2">Mis marcas</p>
+                <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 mb-2">
+                  <div className="px-3 py-1.5 text-xs text-gray-700">Fat Burger</div>
+                  <div className="px-3 py-1.5 text-xs text-gray-700">Demo COTEJA</div>
+                </div>
+                <Senalar><p className="text-xs text-coteja-azul-700 font-medium">+ Agregar marca</p></Senalar>
+              </Mock>
+            ),
+          },
+          {
+            titulo: 'Ponele un nombre y creala',
+            texto: 'Con el nombre alcanza para arrancar - el logo, el teléfono y el mail de alertas se cargan después, igual que con cualquier otra marca.',
+            mock: (
+              <Mock ancho="max-w-xs">
+                <div className="flex items-center gap-2">
+                  <input disabled value="Fat Burger Nueva Córdoba" className="flex-1 text-xs border border-gray-300 rounded-lg px-2 py-1.5 text-gray-500" />
+                  <MBoton>Crear</MBoton>
+                </div>
+              </Mock>
+            ),
+          },
+          {
+            titulo: 'Completá sus datos arriba',
+            texto: 'Apenas la creás, la sección de arriba ("Datos de...") cambia a la marca nueva - ahí le subís el logo y le cargás el teléfono, igual que a cualquier otra.',
+          },
+          {
+            titulo: 'Para pasar de una marca a otra',
+            texto: 'Tocá tu foto de perfil arriba a la derecha - ahí vas a ver el listado de tus marcas para saltar de una a otra en cualquier momento, sin tener que pasar por "Mi cuenta".',
+            mock: (
+              <Mock ancho="max-w-xs">
+                <div className="border border-gray-100 rounded-lg overflow-hidden divide-y divide-gray-100">
+                  <Senalar>
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      <MAvatar letra="F" />
+                      <span className="text-xs text-gray-700">Fat Burger</span>
+                    </div>
+                  </Senalar>
+                  <div className="flex items-center gap-2 px-3 py-1.5">
+                    <MAvatar letra="D" color="verde" />
+                    <span className="text-xs text-gray-700">Demo COTEJA</span>
+                  </div>
+                </div>
+              </Mock>
+            ),
+          },
+        ],
+      },
     ],
   },
 
@@ -665,6 +723,10 @@ export const SECCIONES = [
   },
 ];
 
-export function todosLosArticulos() {
-  return SECCIONES.flatMap((s) => s.articulos.map((a) => ({ ...a, seccionId: s.id, seccionTitulo: s.titulo })));
+// tipoCuenta filtra los articulos marcados soloMultimarca cuando el que
+// pregunta no es Multimarca (ej: "Como crear una marca") - sin tipoCuenta
+// (uso interno, sin usuario todavia) no filtra nada.
+export function todosLosArticulos(tipoCuenta) {
+  return SECCIONES.flatMap((s) => s.articulos.map((a) => ({ ...a, seccionId: s.id, seccionTitulo: s.titulo })))
+    .filter((a) => !a.soloMultimarca || tipoCuenta === 'MULTIMARCA');
 }

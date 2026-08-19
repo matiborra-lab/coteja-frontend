@@ -19,6 +19,15 @@ export function MarcaProvider({ children }) {
   // pantalla (ej: un mensaje de "guardado" o un panel desplegado).
   const [cargandoInicial, setCargandoInicial] = useState(true);
   const resueltoAlgunaVezRef = useRef(false);
+  // Si /api/mis-marcas falla (blip de red, cold start del backend en
+  // Railway, etc) NO hay que confundir "no pude confirmar cuantas marcas
+  // tiene" con "tiene cero marcas" - lo segundo manda a RequireMarca a
+  // redirigir a /crear-marca, y ahi el cliente se encuentra con un backend
+  // que SI ve su marca de siempre y le rechaza la creacion por duplicada
+  // (404/403 confuso). Por eso cargarMarcas reintenta antes de rendirse, y
+  // si aun asi falla, expone "error" para que RequireMarca muestre un
+  // reintentar en vez de asumir que no tiene marcas.
+  const [error, setError] = useState(null);
 
   // Para un admin, /api/mis-marcas necesita saber en que marca esta parado
   // para devolver solo las hermanas de ese cliente (ver backend). Un ref en
@@ -31,6 +40,8 @@ export function MarcaProvider({ children }) {
     marcaActualIdRef.current = marcaActualId;
   }, [marcaActualId]);
 
+  const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const cargarMarcas = useCallback(async (marcaIdParaContexto) => {
     // Mientras AuthContext todavia no resolvio quien es el usuario, "usuario"
     // esta transitoriamente en null - si tratasemos eso como "sin marcas" ya
@@ -42,6 +53,7 @@ export function MarcaProvider({ children }) {
       setMarcas([]);
       setMarcaActualId(null);
       setCargando(false);
+      setError(null);
       if (!resueltoAlgunaVezRef.current) {
         resueltoAlgunaVezRef.current = true;
         setCargandoInicial(false);
@@ -49,28 +61,41 @@ export function MarcaProvider({ children }) {
       return;
     }
     setCargando(true);
-    try {
-      // undefined = "no me dijeron nada, uso la marca actual" (recargarMarcas()
-      // suelto); null explicito = "sin contexto de marca" (volver a Usuarios) -
-      // por eso no se puede usar ?? aca, pisaria el null a proposito.
-      const marcaId = marcaIdParaContexto !== undefined ? marcaIdParaContexto : marcaActualIdRef.current;
-      const query = usuario.rol === 'ADMIN' && marcaId ? `?marcaId=${marcaId}` : '';
-      const data = await api.get('/api/mis-marcas' + query);
-      setMarcas(data);
-      setMarcaActualId((actual) => {
-        if (actual && data.some((m) => m.id === actual)) return actual;
-        // Un admin no tiene "su" marca - no le elegimos ninguna de arranque,
-        // la elige el mismo desde Usuarios ("Ver panel"). Un cliente con
-        // 1+ marcas arranca viendo la primera.
-        if (usuario.rol === 'ADMIN') return actual ?? null;
-        return data[0]?.id ?? null;
-      });
-    } finally {
-      setCargando(false);
-      if (!resueltoAlgunaVezRef.current) {
-        resueltoAlgunaVezRef.current = true;
-        setCargandoInicial(false);
+    // undefined = "no me dijeron nada, uso la marca actual" (recargarMarcas()
+    // suelto); null explicito = "sin contexto de marca" (volver a Usuarios) -
+    // por eso no se puede usar ?? aca, pisaria el null a proposito.
+    const marcaId = marcaIdParaContexto !== undefined ? marcaIdParaContexto : marcaActualIdRef.current;
+    const query = usuario.rol === 'ADMIN' && marcaId ? `?marcaId=${marcaId}` : '';
+    // Un blip de red o un cold start del backend no significa "el cliente no
+    // tiene marcas" - antes de rendirse (y potencialmente mandarlo a
+    // /crear-marca con 0 resultados) reintentamos un par de veces.
+    const intentos = 3;
+    for (let intento = 1; intento <= intentos; intento++) {
+      try {
+        const data = await api.get('/api/mis-marcas' + query);
+        setMarcas(data);
+        setMarcaActualId((actual) => {
+          if (actual && data.some((m) => m.id === actual)) return actual;
+          // Un admin no tiene "su" marca - no le elegimos ninguna de arranque,
+          // la elige el mismo desde Usuarios ("Ver panel"). Un cliente con
+          // 1+ marcas arranca viendo la primera.
+          if (usuario.rol === 'ADMIN') return actual ?? null;
+          return data[0]?.id ?? null;
+        });
+        setError(null);
+        break;
+      } catch (err) {
+        if (intento === intentos) {
+          setError(err.message || 'No se pudieron cargar tus marcas');
+        } else {
+          await esperar(500 * intento);
+        }
       }
+    }
+    setCargando(false);
+    if (!resueltoAlgunaVezRef.current) {
+      resueltoAlgunaVezRef.current = true;
+      setCargandoInicial(false);
     }
   }, [usuario, cargandoAuth]);
 
@@ -82,7 +107,7 @@ export function MarcaProvider({ children }) {
 
   return (
     <MarcaContext.Provider
-      value={{ marcas, marcaActual, marcaActualId, setMarcaActualId, cargando, cargandoInicial, recargarMarcas: cargarMarcas }}
+      value={{ marcas, marcaActual, marcaActualId, setMarcaActualId, cargando, cargandoInicial, error, recargarMarcas: cargarMarcas }}
     >
       {children}
     </MarcaContext.Provider>

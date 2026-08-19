@@ -14,6 +14,7 @@ const DOMINIOS = [
   { patron: /tucan\.la|loveat\.la/i, plataforma: 'Tucán / Loveat' },
   { patron: /toteat\.shop/i, plataforma: 'Toteat' },
   { patron: /growbrands\.net/i, plataforma: 'Grow Brands' },
+  { patron: /rappi\.com/i, plataforma: 'Rappi' },
 ];
 
 export function detectarPlataforma(url) {

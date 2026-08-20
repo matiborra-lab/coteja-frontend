@@ -275,7 +275,8 @@ function FilaArticulo({ p, expandido, editando, categoriasExistentes, onToggle, 
 }
 
 export default function ProductosPropios() {
-  const { marcaActualId } = useMarca();
+  const { marcaActualId, marcaActual } = useMarca();
+  const permiteAjusteUnidad = !!marcaActual?.permite_ajuste_unidad;
   const [productos, setProductos] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [expandidoId, setExpandidoId] = useState(null);
@@ -284,6 +285,7 @@ export default function ProductosPropios() {
   const [categoria, setCategoria] = useState('');
   const [categoriaTocadaAMano, setCategoriaTocadaAMano] = useState(false);
   const [orden, setOrden] = useState('');
+  const [unidadMedida, setUnidadMedida] = useState('UNIDAD');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [toast, setToast] = useState('');
@@ -323,12 +325,14 @@ export default function ProductosPropios() {
         nombre,
         categoria: categoria || null,
         orden: orden === '' ? null : Number(orden),
+        ...(permiteAjusteUnidad ? { unidad_medida: unidadMedida } : {}),
       });
       const categoriaNueva = categoria && !categoriasExistentes.includes(categoria);
       setNombre('');
       setCategoria('');
       setCategoriaTocadaAMano(false);
       setOrden('');
+      setUnidadMedida('UNIDAD');
       await cargar();
       setToast(categoriaNueva ? 'Artículo cargado. Categoría "' + categoria + '" creada.' : 'Artículo cargado.');
     } catch (err) {
@@ -362,7 +366,7 @@ export default function ProductosPropios() {
 
       <form onSubmit={onSubmit} className="bg-white rounded-xl shadow p-4 space-y-3">
         <h2 className="font-medium text-gray-900">Nuevo artículo a cotejar</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+        <div className={'grid grid-cols-1 gap-3 items-start ' + (permiteAjusteUnidad ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">¿Con qué nombre lo vas a cotejar?</label>
             <input
@@ -380,6 +384,18 @@ export default function ProductosPropios() {
               categoriasExistentes={categoriasExistentes}
             />
           </div>
+          {permiteAjusteUnidad && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unidad de medida</label>
+              <select
+                value={unidadMedida}
+                onChange={(e) => setUnidadMedida(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-coteja-azul-500"
+              >
+                {UNIDADES_MEDIDA.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
               Orden (opcional)

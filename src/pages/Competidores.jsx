@@ -6,6 +6,7 @@ import { Campo, Boton, Modal, Leyenda, LogoPlataforma, Toast } from '../componen
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { detectarPlataforma, esCucinaLink, esLinkMultiSucursalCucina } from '../utils/plataformas';
 import { sugerirCategoria } from '../utils/categorias';
+import { nombreCompleto, nombreCompacto } from '../utils/agregados';
 
 const NUEVO_ARTICULO = '__nuevo__';
 const NUEVO_TIPO = '__nuevo_tipo__';
@@ -340,6 +341,34 @@ function FilaItem({ item, etiqueta, yaAgregado, actualizable, seleccionado, onEl
   );
 }
 
+// Como combinar el "parametro" del articulo base con 0, 1 o varios
+// agregados elegidos, sin cambiar como cada plataforma ya arma el suyo (ver
+// src/scraping/*.js en el backend) - por eso NO es un solo delimitador
+// universal: cada familia de plataformas ya tenia su propia convencion para
+// sumar un agregado, esto solo la extiende a poder sumar varios.
+const SISTEMAS_DELIMITADOR_DOBLE_DOSPUNTOS = ['TOTEAT', 'TUCAN', 'BISTROSOFT', 'RESTONLINE'];
+
+function combinarParametro(seleccionado, agregados) {
+  if (agregados.length === 0) return seleccionado.parametro;
+
+  if (seleccionado.sistema === 'CUCINA_LINK_FIJO_US') {
+    // Caso aparte: el parametro base de este sistema es solo un regex (sin
+    // el id del articulo) - el id solo viaja adentro del .parametro que ya
+    // trae cada agregado, por eso se arranca DESDE ahi en vez de desde
+    // seleccionado.parametro.
+    const [primero, ...resto] = agregados;
+    return primero.parametro + resto.map((a) => '+' + a.nombre).join('');
+  }
+  if (SISTEMAS_DELIMITADOR_DOBLE_DOSPUNTOS.includes(seleccionado.sistema)) {
+    return [seleccionado.parametro, ...agregados.map((a) => a.nombre)].filter(Boolean).join('::');
+  }
+  // "a.sumando" solo lo trae Cucina Link "categorias" (cada agregado puede
+  // venir de un grupo distinto, necesita mas que el nombre solo - ver
+  // cucinaLink.js). El resto de las plataformas de esta familia alcanza con
+  // el nombre.
+  return [seleccionado.parametro, ...agregados.map((a) => a.sumando || a.nombre)].filter(Boolean).join('+');
+}
+
 function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
   const [estado, setEstado] = useState('inicial'); // inicial | cargando | error | listo
   const [items, setItems] = useState([]);
@@ -347,7 +376,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
   const [busqueda, setBusqueda] = useState('');
   const [expandidos, setExpandidos] = useState(new Set());
   const [seleccionado, setSeleccionado] = useState(null);
-  const [agregadoSeleccionado, setAgregadoSeleccionado] = useState(null);
+  const [agregadosSeleccionados, setAgregadosSeleccionados] = useState(new Set());
   const [vincularCon, setVincularCon] = useState('');
   const [creandoArticulo, setCreandoArticulo] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState('');
@@ -375,9 +404,10 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
   // vinculo, en vez de tener que guardarlo mal y despues ir a editarlo.
   useEffect(() => {
     if (seleccionado) {
-      setPrecioManual(String(seleccionado.precio + (agregadoSeleccionado?.precio || 0)));
+      const totalAgregados = [...agregadosSeleccionados].reduce((acc, a) => acc + a.precio, 0);
+      setPrecioManual(String(seleccionado.precio + totalAgregados));
     }
-  }, [seleccionado, agregadoSeleccionado]);
+  }, [seleccionado, agregadosSeleccionados]);
 
   async function escanear() {
     setEstado('cargando');
@@ -502,26 +532,32 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
 
   function elegir(item) {
     setSeleccionado((prev) => (prev === item ? null : item));
-    setAgregadoSeleccionado(null);
+    setAgregadosSeleccionados(new Set());
     setVincularCon('');
     setCreandoArticulo(false);
     setNombreNuevo('');
   }
 
-  // El agregado (ej: extra bacon) solo se puede sumar al MISMO articulo que
-  // esta elegido - por eso vive adentro de "seleccionado.agregados" en vez
-  // de ser una seleccion independiente, y se limpia solo con cambiar de
-  // variante.
+  // Los agregados (ej: extra bacon, extra cheddar) solo se pueden sumar al
+  // MISMO articulo que esta elegido - por eso viven adentro de
+  // "seleccionado.agregados" en vez de ser una seleccion independiente, y se
+  // limpian solo con cambiar de variante. La seleccion es de verdad multiple:
+  // tocar uno agrega/saca SOLO ese, nunca reemplaza a los demas.
   function elegirAgregado(agregado) {
-    setAgregadoSeleccionado((prev) => (prev === agregado ? null : agregado));
+    setAgregadosSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(agregado)) next.delete(agregado); else next.add(agregado);
+      return next;
+    });
   }
 
   async function confirmar() {
     if (!seleccionado || (creandoArticulo && !nombreNuevo.trim())) return;
     setGuardando(true);
     try {
-      const nombreFinal = agregadoSeleccionado ? seleccionado.nombre + ' + ' + agregadoSeleccionado.nombre : seleccionado.nombre;
-      const parametroFinal = agregadoSeleccionado ? agregadoSeleccionado.parametro : seleccionado.parametro;
+      const agregadosElegidos = [...agregadosSeleccionados];
+      const nombreFinal = seleccionado.nombre;
+      const parametroFinal = combinarParametro(seleccionado, agregadosElegidos);
 
       let articuloId = vincularCon ? Number(vincularCon) : null;
       if (creandoArticulo) {
@@ -538,7 +574,8 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
         articuloId = articulo.id;
       }
       const esEditable = SISTEMAS_SIN_SCRAPING.includes(seleccionado.sistema);
-      const precioFinal = esEditable ? Number(precioManual) : seleccionado.precio + (agregadoSeleccionado?.precio || 0);
+      const totalAgregados = agregadosElegidos.reduce((acc, a) => acc + a.precio, 0);
+      const precioFinal = esEditable ? Number(precioManual) : seleccionado.precio + totalAgregados;
       const producto = await api.post('/api/productos-competencia', {
         competidor_id: tienda.id,
         nombre: nombreFinal,
@@ -546,12 +583,13 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
         url: seleccionado.url,
         parametro: parametroFinal,
         ultimo_precio: esEditable ? precioFinal : null,
+        agregados: agregadosElegidos.map((a) => ({ nombre: a.nombre, precio: a.precio })),
       });
       if (articuloId) {
         await api.post('/api/vinculos', { producto_propio_id: articuloId, producto_competencia_id: producto.id });
       }
       setSeleccionado(null);
-      setAgregadoSeleccionado(null);
+      setAgregadosSeleccionados(new Set());
       setVincularCon('');
       setCreandoArticulo(false);
       setNombreNuevo('');
@@ -733,7 +771,9 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
         <div className="bg-coteja-azul-50 border border-coteja-azul-200 rounded-lg p-3 space-y-2">
           <p className="text-sm text-coteja-azul-900 flex items-center gap-1.5 flex-wrap">
             <strong>{seleccionado.nombre}</strong>
-            {agregadoSeleccionado && <> + <strong>{agregadoSeleccionado.nombre}</strong></>}
+            {[...agregadosSeleccionados].map((a) => (
+              <span key={a.parametro}> + <strong>{a.nombre}</strong></span>
+            ))}
             {' · '}
             {SISTEMAS_SIN_SCRAPING.includes(seleccionado.sistema) ? (
               <span className="inline-flex items-center gap-1">
@@ -747,7 +787,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                 />
               </span>
             ) : (
-              formatoMoneda(seleccionado.precio + (agregadoSeleccionado?.precio || 0))
+              formatoMoneda(seleccionado.precio + [...agregadosSeleccionados].reduce((acc, a) => acc + a.precio, 0))
             )}
           </p>
           {SISTEMAS_SIN_SCRAPING.includes(seleccionado.sistema) && (
@@ -756,19 +796,19 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
 
           {seleccionado.agregados?.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs text-gray-500">¿Sumar algún agregado de este mismo artículo? (opcional)</p>
+              <p className="text-xs text-gray-500">¿Sumar agregados de este mismo artículo? (opcional, podés elegir varios)</p>
               <div className="flex flex-wrap gap-1.5">
                 {seleccionado.agregados.map((a) => (
                   <label
                     key={a.parametro}
                     className={
                       'flex items-center gap-1 text-xs px-2 py-1 rounded-full border cursor-pointer ' +
-                      (agregadoSeleccionado === a ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
+                      (agregadosSeleccionados.has(a) ? 'bg-coteja-azul-100 border-coteja-azul-400 text-coteja-azul-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50')
                     }
                   >
                     <input
                       type="checkbox"
-                      checked={agregadoSeleccionado === a}
+                      checked={agregadosSeleccionados.has(a)}
                       onChange={() => elegirAgregado(a)}
                       className="rounded border-gray-300"
                     />
@@ -1126,7 +1166,7 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, tabIn
                 {sinVincular.map((p) => (
                   <li key={p.id} className="py-2 space-y-1.5 text-sm">
                     <div>
-                      <span className="font-medium text-gray-900">{p.nombre}</span>{' '}
+                      <span className="font-medium text-gray-900">{nombreCompacto(p)}</span>{' '}
                       <span className="text-gray-500">{formatoMoneda(p.ultimo_precio)}</span>
                       {p.sistema === 'MANUAL' && tienda.plataforma === 'DESCONOCIDA' && (
                         <span className="ml-2 text-xs bg-coteja-azul-100 text-coteja-azul-800 px-1.5 py-0.5 rounded">detectado solo · revisar</span>
@@ -1156,7 +1196,7 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, tabIn
                 {vinculados.map((p) => (
                   <li key={p.id} className="py-2 space-y-1.5 text-sm">
                     <div>
-                      <span className="font-medium text-gray-900">{p.nombre}</span>
+                      <span className="font-medium text-gray-900">{nombreCompleto(p)}</span>
                       <span className="text-gray-400"> → </span>
                       <span className="text-coteja-azul-800">{p.producto_propio_nombre}</span>
                       <span className="text-gray-400"> · </span>

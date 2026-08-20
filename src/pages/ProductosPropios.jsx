@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { sugerirCategoria } from '../utils/categorias';
 import { Leyenda, Toast } from '../components/ui';
+import { nombreCompleto } from '../utils/agregados';
 
 const SIN_CATEGORIA = 'Sin categoría';
 const NUEVA_CATEGORIA = '__nueva__';
@@ -55,7 +56,7 @@ function FilaVinculo({ vinculo, etiqueta, onQuitar }) {
     <li className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
       <span>
         <span className="font-medium text-gray-700">{etiqueta}</span>
-        <span className="text-gray-500"> · {vinculo.nombre} · </span>
+        <span className="text-gray-500"> · {nombreCompleto(vinculo)} · </span>
         <span className="text-gray-500">{formatoMoneda(vinculo.ultimo_precio)}</span>
         {fechaActualizacion && <span className="text-gray-400"> · act. {fechaActualizacion}</span>}
       </span>

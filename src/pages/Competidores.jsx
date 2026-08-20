@@ -61,7 +61,6 @@ function SelectorTipo({ valor, onChange, tiposExistentes }) {
 function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onCancelar }) {
   const [nombre, setNombre] = useState('');
   const [url, setUrl] = useState('');
-  const [urlTienda, setUrlTienda] = useState('');
   const [tipo, setTipo] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -77,11 +76,14 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
       // "Actualización") - subirla aca no servía de nada porque igual hacía
       // falta entrar a la tienda para revisar y vincular cada producto.
       const plataforma = url ? (detectarPlataforma(url) || 'DESCONOCIDA') : 'DESCONOCIDA';
-      // Si es Cucina Link y no cargaron un link de sucursal aparte, se usa
-      // el mismo link de la tienda: en la gran mayoria de los casos ES el
-      // link de sucursal (sirve para la misma cookie de sesion), asi que
-      // pedirlo aparte solo hace falta cuando de verdad es distinto.
-      const urlTiendaFinal = urlTienda || (esCucinaLink(url) ? url : '');
+      // Cucina Link necesita una "url_tienda" para precargar la cookie de
+      // sesion antes de leer el precio (ver precargarCookieDeTienda en el
+      // backend) - se usa siempre el mismo link que la tienda: en la
+      // enorme mayoria de los casos alcanza (sirve para la misma cookie).
+      // Ya no se pide un segundo link aparte - si ese link no corresponde
+      // a un punto de venta especifico, se avisa abajo (ver
+      // esLinkMultiSucursalCucina) y se le pide corregir ESE mismo campo.
+      const urlTiendaFinal = esCucinaLink(url) ? url : '';
       await api.post('/api/competidores', {
         marca_id: marcaId,
         nombre,
@@ -93,7 +95,6 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
       });
       setNombre('');
       setUrl('');
-      setUrlTienda('');
       setTipo('');
       onAgregado();
     } catch (err) {
@@ -117,22 +118,13 @@ function FormAgregarTienda({ marcaId, esPropia, tiposExistentes, onAgregado, onC
 
       <Campo label="Link de la tienda virtual" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
 
-      {esLinkMultiSucursalCucina(url) ? (
+      {esLinkMultiSucursalCucina(url) && (
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
           <p className="text-xs text-amber-800">
-            Este link muestra el selector de sucursales de la cadena, no la carta de un local puntual - todavía no
-            vamos a poder leer precios desde acá. Entrá a ese link, elegí tu sucursal, y pegá el link que te lleva
-            directo a su carta (el que se abre al tocar ese local).
+            Este link no está asociado a una tienda en particular. Revisá que corresponda a la página principal de
+            un punto de venta específico - entrá al link, elegí tu sucursal, y pegá el que te lleva directo a su
+            carta (el que se abre al tocar ese local).
           </p>
-        </div>
-      ) : esCucinaLink(url) && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            Detectamos Cucina Link. Por lo general no hace falta nada más - completá esto solo si el link de arriba
-            no corresponde a esta sucursal en particular (ej: cadenas con un link por sucursal).
-            Ej: <span className="font-mono">https://cucina.link/mi-local/sucursal-centro</span>
-          </p>
-          <Campo label="URL de sucursal (opcional)" value={urlTienda} onChange={(e) => setUrlTienda(e.target.value)} placeholder={url || 'https://...'} />
         </div>
       )}
 
@@ -977,7 +969,6 @@ function PrecioEditableProducto({ producto, onGuardado }) {
 function TabConfiguracion({ tienda, tiposExistentes, onGuardado, onEliminado }) {
   const [nombre, setNombre] = useState(tienda.nombre);
   const [url, setUrl] = useState(tienda.url || '');
-  const [urlTienda, setUrlTienda] = useState(tienda.url_tienda || '');
   const [tipo, setTipo] = useState(tienda.tipo || '');
   const [guardando, setGuardando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -994,7 +985,9 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado, onEliminado }) 
     setError('');
     setGuardando(true);
     try {
-      const urlTiendaFinal = urlTienda || (esCucinaLink(url) ? url : '');
+      // Ver el comentario equivalente en FormAgregarTienda - ya no se pide
+      // un segundo link, se usa siempre el mismo para la cookie de sesion.
+      const urlTiendaFinal = esCucinaLink(url) ? url : '';
       const body = {
         nombre,
         url: url || null,
@@ -1050,21 +1043,13 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado, onEliminado }) 
         </p>
       </div>
 
-      {esLinkMultiSucursalCucina(url) ? (
+      {esLinkMultiSucursalCucina(url) && (
         <div className="bg-amber-50 border border-amber-300 rounded-lg p-3">
           <p className="text-xs text-amber-800">
-            Este link muestra el selector de sucursales de la cadena, no la carta de un local puntual - todavía no
-            vamos a poder leer precios desde acá. Entrá a ese link, elegí tu sucursal, y pegá el link que te lleva
-            directo a su carta (el que se abre al tocar ese local).
+            Este link no está asociado a una tienda en particular. Revisá que corresponda a la página principal de
+            un punto de venta específico - entrá al link, elegí tu sucursal, y pegá el que te lleva directo a su
+            carta (el que se abre al tocar ese local).
           </p>
-        </div>
-      ) : esCucinaLink(url) && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
-          <p className="text-xs text-gray-500">
-            Detectamos Cucina Link. Por lo general no hace falta nada más - completá esto solo si el link de arriba
-            no corresponde a esta sucursal en particular (ej: cadenas con un link por sucursal).
-          </p>
-          <Campo label="URL de sucursal (opcional)" value={urlTienda} onChange={(e) => setUrlTienda(e.target.value)} placeholder={url || 'https://...'} />
         </div>
       )}
 

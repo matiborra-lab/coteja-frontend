@@ -13,7 +13,6 @@ const TIPOS_ALERTA = [
 const CONDICIONES = [
   { value: 'CUALQUIER_CAMBIO', label: 'Cambie el precio' },
   { value: 'VARIACION_PORCENTAJE', label: 'El precio varíe más de un porcentaje' },
-  { value: 'PROMOCION', label: 'Se aplique una promoción' },
 ];
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -169,8 +168,6 @@ function SelectorProgramacion({ frecuencia, horaEnvio, diasSemana, diasMes, onCh
 // tipo solos), igual que categorias_completas para productos. Los
 // competidores sin tipo cargado caen en un grupo "Sin tipo".
 function SelectorCompetidores({ competidores, value, onChange }) {
-  const modo = (value.competidores_ids.length === 0 && value.tipos_completos.length === 0) ? 'TODOS' : 'SELECCION';
-
   const grupos = useMemo(() => {
     const mapa = new Map();
     for (const c of competidores) {
@@ -210,21 +207,21 @@ function SelectorCompetidores({ competidores, value, onChange }) {
         <label className="flex items-center gap-1.5">
           <input
             type="radio"
-            checked={modo === 'TODOS'}
-            onChange={() => onChange({ competidores_ids: [], tipos_completos: [] })}
+            checked={value.modo_competidores === 'TODOS'}
+            onChange={() => onChange({ ...value, modo_competidores: 'TODOS', competidores_ids: [], tipos_completos: [] })}
           />
           Todos los competidores
         </label>
         <label className="flex items-center gap-1.5">
           <input
             type="radio"
-            checked={modo === 'SELECCION'}
-            onChange={() => onChange({ ...value, competidores_ids: competidores.length ? [competidores[0].id] : [] })}
+            checked={value.modo_competidores === 'SELECCION'}
+            onChange={() => onChange({ ...value, modo_competidores: 'SELECCION' })}
           />
           Elegir competidores
         </label>
       </div>
-      {modo === 'SELECCION' && (
+      {value.modo_competidores === 'SELECCION' && (
         <div className="border border-gray-200 rounded-lg p-2 max-h-56 overflow-y-auto space-y-2">
           {grupos.length === 0 && <p className="text-xs text-gray-400">Esta marca todavía no tiene competidores cargados.</p>}
           {grupos.map(([tipoNombre, comps]) => {
@@ -342,7 +339,10 @@ function SelectorProductos({ productosPropios, value, onChange }) {
 }
 
 function bloqueVacio() {
-  return { competidores_ids: [], tipos_completos: [], modo_productos: 'TODOS', categorias_completas: [], productos_ids: [] };
+  return {
+    modo_competidores: 'TODOS', competidores_ids: [], tipos_completos: [],
+    modo_productos: 'TODOS', categorias_completas: [], productos_ids: [],
+  };
 }
 
 // -----------------------------------------------------------------------
@@ -362,6 +362,13 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
   const [bloquesPorMarca, setBloquesPorMarca] = useState(() => {
     if (!alerta) return { [marcaActualId]: bloqueVacio() };
     return Object.fromEntries(alerta.marcas.map((m) => [m.marca_id, {
+      // modo_competidores no se persiste (a diferencia de modo_productos) -
+      // se deriva UNA sola vez acá a partir de lo ya guardado, para que una
+      // alerta existente con selección real se vea en modo "Elegir
+      // competidores" al editarla. De ahí en más es estado propio del
+      // formulario, no se vuelve a recalcular por el contenido de los
+      // arrays (ver SelectorCompetidores).
+      modo_competidores: (m.competidores_ids?.length || m.tipos_completos?.length) ? 'SELECCION' : 'TODOS',
       competidores_ids: m.competidores_ids || [],
       tipos_completos: m.tipos_completos || [],
       modo_productos: m.modo_productos || 'TODOS',
@@ -535,13 +542,6 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
               </label>
             ))}
           </div>
-          {condicion === 'PROMOCION' && (
-            <Leyenda>
-              COTEJA solo notifica promociones cuando la plataforma de pedidos identifica explícitamente un precio promocional
-              sobre el producto. Las bajas del precio base no se consideran promociones, tampoco los productos duplicados o
-              publicados como artículos independientes con otro precio.
-            </Leyenda>
-          )}
         </div>
       )}
 
@@ -562,7 +562,7 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
                   </label>
                   <SelectorCompetidores
                     competidores={datos.competidores}
-                    value={{ competidores_ids: bloque.competidores_ids, tipos_completos: bloque.tipos_completos }}
+                    value={{ modo_competidores: bloque.modo_competidores, competidores_ids: bloque.competidores_ids, tipos_completos: bloque.tipos_completos }}
                     onChange={(v) => actualizarBloque(marcaId, v)}
                   />
                   {tipo === 'POSICIONAMIENTO' && (

@@ -8,6 +8,7 @@ import { suscribirsePush, pushDisponible, estaSuscripto } from '../utils/push';
 const TIPOS_ALERTA = [
   { value: 'POSICIONAMIENTO', label: 'Reporte general de posicionamiento' },
   { value: 'CAMBIOS_COMPETENCIA', label: 'Cambios de precios de competidores' },
+  { value: 'POSICION_VS_MERCADO', label: 'Posición vs. mercado' },
 ];
 
 const CONDICIONES = [
@@ -20,11 +21,24 @@ const NOMBRES_DIAS_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves'
 const NOMBRES_DIAS_CORTO = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 const ORDEN_VISUAL_DIAS = [1, 2, 3, 4, 5, 6, 0]; // Lunes primero para mostrar, aunque el valor interno sea 0=Domingo
 
+// El push solo tiene sentido en alertas puntuales/accionables - reportes de
+// rutina (POSICIONAMIENTO, CAMBIOS_COMPETENCIA programado) no lo ofrecen,
+// mismo criterio que el backend (ver server/index.js).
+function pushDisponibleParaEsteTipo(tipo, modalidadEnvio) {
+  return (tipo === 'CAMBIOS_COMPETENCIA' && modalidadEnvio === 'AUTOMATICO') || tipo === 'POSICION_VS_MERCADO';
+}
+
 function tipoLabel(valor) {
   return TIPOS_ALERTA.find((t) => t.value === valor)?.label || valor;
 }
 function condicionLabel(valor) {
   return CONDICIONES.find((c) => c.value === valor)?.label || valor;
+}
+function bandaLabel(alerta) {
+  const partes = [];
+  if (alerta.banda_piso_porcentaje != null) partes.push('Piso ' + alerta.banda_piso_porcentaje + '%');
+  if (alerta.banda_techo_porcentaje != null) partes.push('Techo ' + alerta.banda_techo_porcentaje + '%');
+  return partes.join(' / ') || '-';
 }
 function formatoFecha(fecha) {
   if (!fecha) return '-';
@@ -338,6 +352,53 @@ function SelectorProductos({ productosPropios, value, onChange }) {
   );
 }
 
+// Piso y techo son independientes - se puede cargar uno solo (alerta de un
+// solo lado) o los dos juntos (una franja completa). Al menos uno es
+// obligatorio, lo valida el backend.
+function SelectorBandaPorcentaje({ piso, techo, onChange }) {
+  return (
+    <div className="space-y-2">
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <span>Avisarme si mi precio está por debajo de</span>
+        <input
+          type="number" step="0.1" min="0" value={piso}
+          onChange={(e) => onChange({ piso: e.target.value, techo })}
+          placeholder="%" className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+        />
+        <span>% del promedio de competencia</span>
+      </label>
+      <label className="flex flex-wrap items-center gap-2 text-sm">
+        <span>Avisarme si mi precio está por encima de</span>
+        <input
+          type="number" step="0.1" min="0" value={techo}
+          onChange={(e) => onChange({ piso, techo: e.target.value })}
+          placeholder="%" className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+        />
+        <span>% del promedio de competencia</span>
+      </label>
+      <Leyenda>Cargá al menos uno de los dos - podés usar los dos juntos para definir una franja completa.</Leyenda>
+    </div>
+  );
+}
+
+// Compartido entre CAMBIOS_COMPETENCIA automática y POSICION_VS_MERCADO -
+// las dos unicas alertas puntuales/accionables donde el push tiene sentido.
+function NotificacionPushCheckbox({ checked, suscribiendo, error, onChange }) {
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" checked={checked} disabled={suscribiendo} onChange={(e) => onChange(e.target.checked)} />
+        Enviar notificación push a tus dispositivos móviles vinculados
+      </label>
+      <p className="text-xs text-gray-400">
+        Se envía a todos los dispositivos donde el mismo usuario tenga la app instalada y las notificaciones activadas.
+      </p>
+      {suscribiendo && <p className="text-xs text-gray-400">Activando notificaciones...</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 function bloqueVacio() {
   return {
     modo_competidores: 'TODOS', competidores_ids: [], tipos_completos: [],
@@ -379,6 +440,8 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
   const [condicion, setCondicion] = useState(alerta?.condicion || 'CUALQUIER_CAMBIO');
   const [umbral, setUmbral] = useState(alerta?.condicion_umbral_porcentaje ?? '');
   const [modalidadEnvio, setModalidadEnvio] = useState(alerta?.modalidad_envio || 'AUTOMATICO');
+  const [bandaPiso, setBandaPiso] = useState(alerta?.banda_piso_porcentaje ?? '');
+  const [bandaTecho, setBandaTecho] = useState(alerta?.banda_techo_porcentaje ?? '');
   const [notificacionPush, setNotificacionPush] = useState(alerta?.notificacion_push || false);
   const [pushError, setPushError] = useState('');
   const [suscribiendoPush, setSuscribiendoPush] = useState(false);
@@ -387,6 +450,15 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
   const [diasSemana, setDiasSemana] = useState(alerta?.dias_semana || [1]);
   const [diasMes, setDiasMes] = useState(alerta?.dias_mes || [1]);
   const [emailsCc, setEmailsCc] = useState(alerta?.emails_cc || []);
+  // 'CUENTA' = usar usuarioEmail (default), 'OTRO' = override cargado en
+  // email_principal, 'NINGUNO' = email_principal_desactivado (solo CC/push).
+  const [emailPrincipalModo, setEmailPrincipalModo] = useState(() => {
+    if (!alerta) return 'CUENTA';
+    if (alerta.email_principal_desactivado) return 'NINGUNO';
+    if (alerta.email_principal) return 'OTRO';
+    return 'CUENTA';
+  });
+  const [emailPrincipalValor, setEmailPrincipalValor] = useState(alerta?.email_principal || '');
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -417,6 +489,8 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
   }
 
   const esProgramada = tipo === 'POSICIONAMIENTO' || (tipo === 'CAMBIOS_COMPETENCIA' && modalidadEnvio === 'PROGRAMADO');
+  const pushDisponibleAqui = pushDisponibleParaEsteTipo(tipo, modalidadEnvio);
+  const quedariaSinCanal = emailsCc.length === 0 && !(pushDisponibleAqui && notificacionPush);
 
   // Tildar la casilla registra el dispositivo actual (pide permiso al
   // navegador) - un dispositivo ya suscripto queda disponible para
@@ -449,11 +523,15 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
         condicion: tipo === 'CAMBIOS_COMPETENCIA' ? condicion : null,
         condicion_umbral_porcentaje: tipo === 'CAMBIOS_COMPETENCIA' && condicion === 'VARIACION_PORCENTAJE' ? Number(umbral) : null,
         modalidad_envio: tipo === 'CAMBIOS_COMPETENCIA' ? modalidadEnvio : null,
-        notificacion_push: tipo === 'CAMBIOS_COMPETENCIA' && modalidadEnvio === 'AUTOMATICO' ? notificacionPush : false,
+        notificacion_push: pushDisponibleAqui ? notificacionPush : false,
         frecuencia_programada: esProgramada ? frecuencia : null,
         hora_envio: esProgramada ? horaEnvio : null,
         dias_semana: esProgramada && frecuencia === 'SEMANAL' ? diasSemana : null,
         dias_mes: esProgramada && frecuencia === 'MENSUAL' ? diasMes : null,
+        banda_piso_porcentaje: tipo === 'POSICION_VS_MERCADO' && bandaPiso !== '' ? Number(bandaPiso) : null,
+        banda_techo_porcentaje: tipo === 'POSICION_VS_MERCADO' && bandaTecho !== '' ? Number(bandaTecho) : null,
+        email_principal: emailPrincipalModo === 'OTRO' ? emailPrincipalValor.trim() : null,
+        email_principal_desactivado: emailPrincipalModo === 'NINGUNO',
         marcas: marcasSeleccionadas.map((id) => {
           const bloque = bloquesPorMarca[id] || bloqueVacio();
           return {
@@ -545,6 +623,32 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
         </div>
       )}
 
+      {tipo === 'POSICION_VS_MERCADO' && (
+        <div className="space-y-3">
+          <Leyenda>
+            Te avisa cuando tu precio se aleja del promedio de la competencia filtrada más de lo que definas abajo. No es
+            un reporte periódico: se dispara sola cuando detecta un producto fuera de rango. Igual que con cambios de
+            precio de la competencia, espera un poco (hasta 60 minutos) antes de avisarte, dando tiempo a que la
+            competencia termine de actualizar su carta - si para entonces el precio volvió a estar dentro del rango, no
+            te llega nada.
+          </Leyenda>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Rango de precio aceptable</label>
+            <SelectorBandaPorcentaje
+              piso={bandaPiso}
+              techo={bandaTecho}
+              onChange={(v) => { setBandaPiso(v.piso); setBandaTecho(v.techo); }}
+            />
+          </div>
+          <NotificacionPushCheckbox
+            checked={notificacionPush}
+            suscribiendo={suscribiendoPush}
+            error={pushError}
+            onChange={onNotificacionPushChange}
+          />
+        </div>
+      )}
+
       {marcasSeleccionadas.filter(Boolean).map((marcaId) => {
         const marca = marcas.find((m) => m.id === marcaId);
         const datos = datosPorMarca[marcaId];
@@ -558,15 +662,15 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {tipo === 'POSICIONAMIENTO' ? 'Competencias a monitorear' : 'Competidores a monitorear'}
+                    {tipo === 'POSICIONAMIENTO' || tipo === 'POSICION_VS_MERCADO' ? 'Competencias a monitorear' : 'Competidores a monitorear'}
                   </label>
                   <SelectorCompetidores
                     competidores={datos.competidores}
                     value={{ modo_competidores: bloque.modo_competidores, competidores_ids: bloque.competidores_ids, tipos_completos: bloque.tipos_completos }}
                     onChange={(v) => actualizarBloque(marcaId, v)}
                   />
-                  {tipo === 'POSICIONAMIENTO' && (
-                    <p className="text-xs text-gray-400 mt-1">El promedio y las columnas del reporte se calculan solo con las competencias elegidas.</p>
+                  {(tipo === 'POSICIONAMIENTO' || tipo === 'POSICION_VS_MERCADO') && (
+                    <p className="text-xs text-gray-400 mt-1">El promedio se calcula solo con las competencias elegidas.</p>
                   )}
                 </div>
                 <div>
@@ -597,17 +701,14 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
                   Para evitar notificaciones incompletas, COTEJA agrupa durante aproximadamente 60 minutos los cambios detectados
                   antes de enviar el aviso.
                 </Leyenda>
-                <label className="flex items-center gap-2 text-sm text-gray-700 pl-6">
-                  <input
-                    type="checkbox"
+                <div className="pl-6">
+                  <NotificacionPushCheckbox
                     checked={notificacionPush}
-                    disabled={suscribiendoPush}
-                    onChange={(e) => onNotificacionPushChange(e.target.checked)}
+                    suscribiendo={suscribiendoPush}
+                    error={pushError}
+                    onChange={onNotificacionPushChange}
                   />
-                  Enviar notificación push a tus dispositivos móviles vinculados
-                </label>
-                {suscribiendoPush && <p className="text-xs text-gray-400 pl-6">Activando notificaciones...</p>}
-                {pushError && <p className="text-xs text-red-600 pl-6">{pushError}</p>}
+                </div>
               </>
             )}
             <label className="flex items-center gap-2 text-sm">
@@ -634,7 +735,33 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
       <div className="space-y-2 border-t border-gray-100 pt-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Enviar a</label>
-          <p className="text-sm text-gray-500 bg-gray-50 rounded-lg px-3 py-2">{usuarioEmail}</p>
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" checked={emailPrincipalModo === 'CUENTA'} onChange={() => setEmailPrincipalModo('CUENTA')} />
+              El mail de tu cuenta ({usuarioEmail})
+            </label>
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              <input type="radio" checked={emailPrincipalModo === 'OTRO'} onChange={() => setEmailPrincipalModo('OTRO')} />
+              Otro mail
+              {emailPrincipalModo === 'OTRO' && (
+                <input
+                  type="email" required value={emailPrincipalValor}
+                  onChange={(e) => setEmailPrincipalValor(e.target.value)}
+                  placeholder="mail@ejemplo.com"
+                  className="flex-1 min-w-[180px] rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                />
+              )}
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" checked={emailPrincipalModo === 'NINGUNO'} onChange={() => setEmailPrincipalModo('NINGUNO')} />
+              Sin destinatario principal (solo copia y/o push)
+            </label>
+          </div>
+          {emailPrincipalModo === 'NINGUNO' && quedariaSinCanal && (
+            <p className="text-xs text-red-600 mt-1">
+              Con esta opción necesitás cargar al menos un mail en copia{pushDisponibleAqui ? ' o activar el push' : ''}.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">CC / Enviar copia a (opcional)</label>
@@ -860,10 +987,11 @@ export default function Alertas() {
                     <td className="p-3 align-top text-gray-600">
                       {a.tipo === 'CAMBIOS_COMPETENCIA'
                         ? condicionLabel(a.condicion) + (a.condicion === 'VARIACION_PORCENTAJE' ? ' ≥' + a.condicion_umbral_porcentaje + '%' : '')
-                        : '-'}
+                        : a.tipo === 'POSICION_VS_MERCADO' ? bandaLabel(a) : '-'}
                     </td>
                     <td className="p-3 align-top text-gray-600 whitespace-nowrap">
-                      {a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO' ? 'Automática' : (a.frecuencia_programada || '-')}
+                      {a.tipo === 'POSICION_VS_MERCADO' || (a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO')
+                        ? 'Automática' : (a.frecuencia_programada || '-')}
                     </td>
                     <td className="p-3 align-top text-gray-600 whitespace-nowrap">{formatoFecha(a.proximo_envio)}</td>
                     <td className="p-3 align-top">
@@ -916,13 +1044,14 @@ export default function Alertas() {
                   <span className="text-gray-700">
                     {a.tipo === 'CAMBIOS_COMPETENCIA'
                       ? condicionLabel(a.condicion) + (a.condicion === 'VARIACION_PORCENTAJE' ? ' ≥' + a.condicion_umbral_porcentaje + '%' : '')
-                      : '-'}
+                      : a.tipo === 'POSICION_VS_MERCADO' ? bandaLabel(a) : '-'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Frecuencia</span>
                   <span className="text-gray-700">
-                    {a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO' ? 'Automática' : (a.frecuencia_programada || '-')}
+                    {a.tipo === 'POSICION_VS_MERCADO' || (a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO')
+                      ? 'Automática' : (a.frecuencia_programada || '-')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">

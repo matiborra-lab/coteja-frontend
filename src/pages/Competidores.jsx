@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
-import { Campo, Boton, Modal, Leyenda, LogoPlataforma, Toast } from '../components/ui';
+import { Campo, Boton, Modal, Leyenda, LogoPlataforma, Toast, CantidadEditable } from '../components/ui';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { detectarPlataforma, esCucinaLink, esLinkMultiSucursalCucina } from '../utils/plataformas';
 import { sugerirCategoria } from '../utils/categorias';
 import { nombreCompleto, nombreCompacto } from '../utils/agregados';
+import { parsearCantidad, unidadMedidaLabel } from '../utils/unidadesMedida';
 
 const NUEVO_ARTICULO = '__nuevo__';
 const NUEVO_TIPO = '__nuevo_tipo__';
@@ -370,6 +371,8 @@ function combinarParametro(seleccionado, agregados) {
 }
 
 function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
+  const { marcaActual } = useMarca();
+  const permiteAjusteUnidad = !!marcaActual?.permite_ajuste_unidad;
   const [estado, setEstado] = useState('inicial'); // inicial | cargando | error | listo
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
@@ -380,6 +383,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
   const [vincularCon, setVincularCon] = useState('');
   const [creandoArticulo, setCreandoArticulo] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState('');
+  const [cantidad, setCantidad] = useState('1');
   const [guardando, setGuardando] = useState(false);
   const [subiendoArchivos, setSubiendoArchivos] = useState(false);
   const [precioManual, setPrecioManual] = useState('');
@@ -536,6 +540,7 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
     setVincularCon('');
     setCreandoArticulo(false);
     setNombreNuevo('');
+    setCantidad('1');
   }
 
   // Los agregados (ej: extra bacon, extra cheddar) solo se pueden sumar al
@@ -553,6 +558,15 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
 
   async function confirmar() {
     if (!seleccionado || (creandoArticulo && !nombreNuevo.trim())) return;
+    // La cantidad solo aplica si se va a vincular con un articulo (nuevo o
+    // existente) y la marca tiene el ajuste activo - sin eso no hay a que
+    // articulo pegarle la cantidad todavia.
+    const vaAVincular = vincularCon || creandoArticulo;
+    const cantidadNumero = permiteAjusteUnidad && vaAVincular ? parsearCantidad(cantidad) : null;
+    if (permiteAjusteUnidad && vaAVincular && cantidadNumero === null) {
+      alert('La cantidad tiene que ser un número mayor a 0.');
+      return;
+    }
     setGuardando(true);
     try {
       const agregadosElegidos = [...agregadosSeleccionados];
@@ -586,13 +600,18 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
         agregados: agregadosElegidos.map((a) => ({ nombre: a.nombre, precio: a.precio })),
       });
       if (articuloId) {
-        await api.post('/api/vinculos', { producto_propio_id: articuloId, producto_competencia_id: producto.id });
+        await api.post('/api/vinculos', {
+          producto_propio_id: articuloId,
+          producto_competencia_id: producto.id,
+          cantidad: cantidadNumero,
+        });
       }
       setSeleccionado(null);
       setAgregadosSeleccionados(new Set());
       setVincularCon('');
       setCreandoArticulo(false);
       setNombreNuevo('');
+      setCantidad('1');
       onAgregado();
     } catch (err) {
       alert('No se pudo agregar "' + seleccionado.nombre + '": ' + err.message);
@@ -843,12 +862,28 @@ function CartaCompleta({ tienda, productos, productosPropios, onAgregado }) {
                 <option value={NUEVO_ARTICULO}>+ Crear artículo nuevo</option>
               </select>
             )}
+            {permiteAjusteUnidad && (vincularCon || creandoArticulo) && (
+              <span className="inline-flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+                Cantidad:
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={cantidad}
+                  onChange={(e) => setCantidad(e.target.value)}
+                  className="w-14 rounded border border-gray-300 px-1.5 py-1 text-sm text-gray-900"
+                />
+                {unidadMedidaLabel(
+                  creandoArticulo ? 'UNIDAD' : productosPropios.find((pp) => String(pp.id) === vincularCon)?.unidad_medida
+                )}
+              </span>
+            )}
             <button
               onClick={confirmar}
               disabled={
                 guardando ||
                 (creandoArticulo && !nombreNuevo.trim()) ||
-                (SISTEMAS_SIN_SCRAPING.includes(seleccionado.sistema) && (precioManual === '' || isNaN(Number(precioManual))))
+                (SISTEMAS_SIN_SCRAPING.includes(seleccionado.sistema) && (precioManual === '' || isNaN(Number(precioManual)))) ||
+                (permiteAjusteUnidad && (vincularCon || creandoArticulo) && parsearCantidad(cantidad) === null)
               }
               className="text-white bg-coteja-verde-700 hover:bg-coteja-verde-800 disabled:opacity-50 rounded-lg px-3 py-1.5 text-sm font-medium"
             >
@@ -1063,6 +1098,8 @@ function TabConfiguracion({ tienda, tiposExistentes, onGuardado, onEliminado }) 
 }
 
 function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, tabInicial, onCerrar, onCambioGlobal, onTiendaActualizada }) {
+  const { marcaActual } = useMarca();
+  const permiteAjusteUnidad = !!marcaActual?.permite_ajuste_unidad;
   const [tab, setTab] = useState(tabInicial || 'productos');
   const [productos, setProductos] = useState(null);
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -1207,8 +1244,16 @@ function TiendaModal({ tienda, marcaId, tiposExistentes, productosPropios, tabIn
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <VincularSelect producto={p} productosPropios={productosPropios} onVinculado={() => { cargarProductos(); onCambioGlobal(); }} />
+                      {permiteAjusteUnidad && (
+                        <CantidadEditable
+                          vinculoId={p.vinculo_id}
+                          cantidad={p.cantidad}
+                          unidadMedida={p.unidad_medida}
+                          onGuardado={() => { cargarProductos(); onCambioGlobal(); }}
+                        />
+                      )}
                       <button onClick={() => quitarVinculo(p.vinculo_id)} className="text-xs text-red-600 hover:underline">Eliminar</button>
                     </div>
                   </li>
@@ -1294,7 +1339,7 @@ export default function Competidores() {
       api.get('/api/panel/' + marcaActualId),
     ]);
     setTiendas(tiendasData);
-    setProductosPropios(panel.map((p) => ({ id: p.id, nombre: p.nombre, vinculosExistentes: p.competencia.length })));
+    setProductosPropios(panel.map((p) => ({ id: p.id, nombre: p.nombre, unidad_medida: p.unidad_medida, vinculosExistentes: p.competencia.length })));
 
     // Para el resumen de cada card ("2 vinculados, +N más") sin tener que
     // abrir cada tienda - se trae en paralelo la lista de productos de cada una.

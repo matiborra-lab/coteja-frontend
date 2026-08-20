@@ -3,8 +3,9 @@ import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import { formatoMoneda, formatoFechaHora } from '../utils/formato';
 import { sugerirCategoria } from '../utils/categorias';
-import { Leyenda, Toast } from '../components/ui';
+import { Leyenda, Toast, CantidadEditable } from '../components/ui';
 import { nombreCompleto } from '../utils/agregados';
+import { UNIDADES_MEDIDA } from '../utils/unidadesMedida';
 
 const SIN_CATEGORIA = 'Sin categoría';
 const NUEVA_CATEGORIA = '__nueva__';
@@ -50,15 +51,26 @@ function SelectorCategoria({ valor, onChange, categoriasExistentes }) {
 // (pestaña "Artículos vinculados") - aca el precio es de solo lectura, con
 // la fecha de la ultima actualizacion al lado para tener contexto de que
 // tan fresco esta.
-function FilaVinculo({ vinculo, etiqueta, onQuitar }) {
+function FilaVinculo({ vinculo, etiqueta, onQuitar, permiteAjusteUnidad, unidadMedida, onCambio }) {
   const fechaActualizacion = formatoFechaHora(vinculo.ultima_actualizacion);
   return (
-    <li className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
+    <li className="flex items-center justify-between flex-wrap gap-1 text-xs bg-gray-50 rounded-lg px-3 py-2">
       <span>
         <span className="font-medium text-gray-700">{etiqueta}</span>
         <span className="text-gray-500"> · {nombreCompleto(vinculo)} · </span>
         <span className="text-gray-500">{formatoMoneda(vinculo.ultimo_precio)}</span>
         {fechaActualizacion && <span className="text-gray-400"> · act. {fechaActualizacion}</span>}
+        {permiteAjusteUnidad && (
+          <>
+            <span className="text-gray-400"> · </span>
+            <CantidadEditable
+              vinculoId={vinculo.vinculo_id}
+              cantidad={vinculo.cantidad}
+              unidadMedida={unidadMedida}
+              onGuardado={onCambio}
+            />
+          </>
+        )}
       </span>
       <button onClick={onQuitar} className="text-red-600 hover:underline">
         Quitar vínculo
@@ -68,6 +80,9 @@ function FilaVinculo({ vinculo, etiqueta, onQuitar }) {
 }
 
 function VinculosDeArticulo({ articulo, onCambio }) {
+  const { marcaActual } = useMarca();
+  const permiteAjusteUnidad = !!marcaActual?.permite_ajuste_unidad;
+
   async function eliminarVinculo(vinculoId) {
     if (!confirm('¿Quitar este vínculo? El artículo y el producto de la competencia siguen existiendo, solo se desvinculan.')) return;
     await api.del('/api/vinculos/' + vinculoId);
@@ -91,6 +106,9 @@ function VinculosDeArticulo({ articulo, onCambio }) {
                 vinculo={v}
                 etiqueta={v.competidor_nombre}
                 onQuitar={() => eliminarVinculo(v.vinculo_id)}
+                permiteAjusteUnidad={permiteAjusteUnidad}
+                unidadMedida={articulo.unidad_medida}
+                onCambio={onCambio}
               />
             ))}
           </ul>
@@ -106,6 +124,9 @@ function VinculosDeArticulo({ articulo, onCambio }) {
                 vinculo={c}
                 etiqueta={c.competidor_nombre}
                 onQuitar={() => eliminarVinculo(c.vinculo_id)}
+                permiteAjusteUnidad={permiteAjusteUnidad}
+                unidadMedida={articulo.unidad_medida}
+                onCambio={onCambio}
               />
             ))}
           </ul>
@@ -124,9 +145,12 @@ const AYUDA_ORDEN =
   'alfabéticamente.';
 
 function EditorArticulo({ articulo, categoriasExistentes, onCerrar, onCambio, onExito }) {
+  const { marcaActual } = useMarca();
+  const permiteAjusteUnidad = !!marcaActual?.permite_ajuste_unidad;
   const [nombre, setNombre] = useState(articulo.nombre);
   const [categoria, setCategoria] = useState(articulo.categoria || '');
   const [orden, setOrden] = useState(articulo.orden ?? '');
+  const [unidadMedida, setUnidadMedida] = useState(articulo.unidad_medida || 'UNIDAD');
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
@@ -140,6 +164,7 @@ function EditorArticulo({ articulo, categoriasExistentes, onCerrar, onCambio, on
         nombre,
         categoria: categoria || null,
         orden: orden === '' ? null : Number(orden),
+        ...(permiteAjusteUnidad ? { unidad_medida: unidadMedida } : {}),
       });
       const categoriaNueva = categoria && !categoriasExistentes.includes(categoria);
       onCerrar();
@@ -154,7 +179,7 @@ function EditorArticulo({ articulo, categoriasExistentes, onCerrar, onCambio, on
 
   return (
     <form onSubmit={guardar} className="px-4 pb-4 pt-1 space-y-2 bg-gray-50 border-t border-gray-100">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className={'grid grid-cols-1 gap-2 ' + (permiteAjusteUnidad ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Nombre</label>
           <input
@@ -183,6 +208,18 @@ function EditorArticulo({ articulo, categoriasExistentes, onCerrar, onCambio, on
             className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
           />
         </div>
+        {permiteAjusteUnidad && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Unidad de medida</label>
+            <select
+              value={unidadMedida}
+              onChange={(e) => setUnidadMedida(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            >
+              {UNIDADES_MEDIDA.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+          </div>
+        )}
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex items-center gap-3">

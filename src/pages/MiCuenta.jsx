@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMarca } from '../context/MarcaContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
-import { Campo, Boton } from '../components/ui';
+import { Campo, Boton, Modal, Leyenda } from '../components/ui';
 import { TIPOS_COMERCIO } from '../utils/tiposComercio';
 
 const MAX_LOGO_BYTES = 800 * 1024;
@@ -22,6 +22,65 @@ function SelectorTipoComercio({ value, onChange }) {
         ))}
       </select>
     </div>
+  );
+}
+
+// Checkbox de "Permitir ajuste por unidad de medida" - activarlo pide
+// confirmacion explicita (guarda de una, no depende del boton "Guardar
+// cambios" del resto del formulario, asi no queda ambiguo si quedo
+// prendido o no); desactivarlo es directo, sin confirmar. Se usa tanto en
+// SeccionMarca (MARCA_UNICA) como en MarcaFila (MULTIMARCA).
+function ToggleAjusteUnidad({ activo, onCambiar }) {
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
+
+  function onChange(e) {
+    if (e.target.checked) setMostrarConfirmacion(true);
+    else onCambiar(false);
+  }
+
+  function confirmar() {
+    setMostrarConfirmacion(false);
+    onCambiar(true);
+  }
+
+  return (
+    <>
+      <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+        <input type="checkbox" checked={activo} onChange={onChange} className="mt-0.5 rounded border-gray-300" />
+        <span>
+          Permitir ajuste por unidad de medida
+          <span className="block text-xs text-gray-400">
+            Comparar productos que se venden en distinta cantidad (ej: precio por unidad, por kilo, por litro).
+          </span>
+        </span>
+      </label>
+
+      {mostrarConfirmacion && (
+        <Modal titulo="¿Estás seguro de que querés permitir el ajuste por unidad de medida?" onClose={() => setMostrarConfirmacion(false)}>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-700">
+              Esta herramienta permite comparar correctamente productos equivalentes que se comercializan en diferentes cantidades.
+            </p>
+            <Leyenda>
+              Una vez activada esta opción, se recomienda revisar manualmente la unidad de medida de cada Artículo a Cotejar
+              y la cantidad correspondiente de sus productos vinculados para garantizar que las comparaciones sean correctas.
+            </Leyenda>
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={confirmar}
+                className="text-sm bg-coteja-verde-700 hover:bg-coteja-verde-800 text-white font-medium rounded-lg px-4 py-2"
+              >
+                Activar ajuste por unidad de medida
+              </button>
+              <button type="button" onClick={() => setMostrarConfirmacion(false)} className="text-sm text-gray-500 hover:underline">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -77,6 +136,16 @@ function SeccionMarca() {
     }
   }
 
+  async function cambiarAjusteUnidad(nuevoValor) {
+    setError('');
+    try {
+      await api.patch('/api/marcas/' + marcaActual.id, { permite_ajuste_unidad: nuevoValor });
+      await recargarMarcas();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   if (!marcaActual) return null;
 
   const logoParaMostrar = logoDataUrl || marcaActual.logo_url;
@@ -116,6 +185,8 @@ function SeccionMarca() {
           placeholder="ej: 3511234567"
         />
       </div>
+
+      <ToggleAjusteUnidad activo={!!marcaActual.permite_ajuste_unidad} onCambiar={cambiarAjusteUnidad} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}
@@ -253,6 +324,16 @@ function MarcaFila({ marca, expandido, onToggle }) {
     }
   }
 
+  async function cambiarAjusteUnidad(nuevoValor) {
+    setError('');
+    try {
+      await api.patch('/api/marcas/' + marca.id, { permite_ajuste_unidad: nuevoValor });
+      await recargarMarcas();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const logoParaMostrar = logoDataUrl || marca.logo_url;
 
   return (
@@ -305,6 +386,8 @@ function MarcaFila({ marca, expandido, onToggle }) {
               placeholder="ej: 3511234567"
             />
           </div>
+
+          <ToggleAjusteUnidad activo={!!marca.permite_ajuste_unidad} onCambiar={cambiarAjusteUnidad} />
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}

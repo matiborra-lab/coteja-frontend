@@ -6,6 +6,7 @@ import {
 import { useMarca } from '../context/MarcaContext';
 import { api } from '../api/client';
 import { formatoMoneda } from '../utils/formato';
+import { unidadMedidaLabel } from '../utils/unidadesMedida';
 
 const PERIODOS = [
   { value: 15, label: '15 días' },
@@ -28,6 +29,7 @@ const COLOR_PROMEDIO = '#02662e';
 // contenido, así el offset sticky de cada celda es siempre predecible.
 const ANCHO_COL_CATEGORIA = 108;
 const ANCHO_COL_ARTICULO = 190;
+const ANCHO_COL_UNIDAD = 110; // solo cuando la marca tiene permite_ajuste_unidad activo
 const ANCHO_COL_TU_PRECIO = 92;
 const ANCHO_COL_COMPETIDOR = 122;
 const ANCHO_COL_PROMEDIO = 128;
@@ -556,7 +558,8 @@ function SeccionGraficos({ productos, filtroCompetidores, marcaActualId }) {
 }
 
 export default function Panel() {
-  const { marcaActualId } = useMarca();
+  const { marcaActualId, marcaActual } = useMarca();
+  const permiteAjusteUnidad = !!marcaActual?.permite_ajuste_unidad;
   const [productos, setProductos] = useState(null);
   const [vista, setVista] = useState('articulo');
   const [busqueda, setBusqueda] = useState('');
@@ -756,6 +759,10 @@ export default function Panel() {
     );
   }
 
+  // Offset sticky de "Tu precio" - corre un poco mas a la derecha si la
+  // columna "Unidad de medida" esta presente antes que ella.
+  const offsetTuPrecio = ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO + (permiteAjusteUnidad ? ANCHO_COL_UNIDAD : 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -944,6 +951,7 @@ export default function Panel() {
               <colgroup>
                 <col style={{ width: ANCHO_COL_CATEGORIA }} />
                 <col style={{ width: ANCHO_COL_ARTICULO }} />
+                {permiteAjusteUnidad && <col style={{ width: ANCHO_COL_UNIDAD }} />}
                 <col style={{ width: ANCHO_COL_TU_PRECIO }} />
                 {competidoresColumnas.map((col) => (
                   <col key={col.id} style={{ width: ANCHO_COL_COMPETIDOR }} />
@@ -955,7 +963,12 @@ export default function Panel() {
                 <tr>
                   <th className="px-4 py-3 font-medium bg-gray-50 border-r border-gray-200" style={estiloStickyIzq(0, ANCHO_COL_CATEGORIA)}>Categoría</th>
                   <th className="px-4 py-3 font-medium bg-gray-50" style={estiloStickyIzq(ANCHO_COL_CATEGORIA, ANCHO_COL_ARTICULO)}>Artículo</th>
-                  <th className="px-4 py-3 font-medium bg-gray-50 border-r border-gray-200" style={estiloStickyIzq(ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO, ANCHO_COL_TU_PRECIO)}>Tu precio</th>
+                  {permiteAjusteUnidad && (
+                    <th className="px-4 py-3 font-medium bg-gray-50 border-r border-gray-200" style={estiloStickyIzq(ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO, ANCHO_COL_UNIDAD)}>
+                      Unidad de medida
+                    </th>
+                  )}
+                  <th className="px-4 py-3 font-medium bg-gray-50 border-r border-gray-200" style={estiloStickyIzq(offsetTuPrecio, ANCHO_COL_TU_PRECIO)}>Tu precio</th>
                   {competidoresColumnas.map((col) => (
                     <th
                       key={col.id}
@@ -973,7 +986,7 @@ export default function Panel() {
               <tbody className="divide-y divide-gray-100">
                 {productosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={5 + competidoresColumnas.length} className="px-4 py-6 text-center text-gray-400">
+                    <td colSpan={(permiteAjusteUnidad ? 6 : 5) + competidoresColumnas.length} className="px-4 py-6 text-center text-gray-400">
                       Ningún artículo coincide con "{busqueda}".
                     </td>
                   </tr>
@@ -994,9 +1007,17 @@ export default function Panel() {
                       >
                         {p.nombre}
                       </td>
+                      {permiteAjusteUnidad && (
+                        <td
+                          className="px-4 py-3 align-top text-gray-500 bg-white border-r border-gray-200 overflow-hidden text-ellipsis whitespace-nowrap"
+                          style={estiloStickyIzq(ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO, ANCHO_COL_UNIDAD)}
+                        >
+                          {unidadMedidaLabel(p.unidad_medida)}
+                        </td>
+                      )}
                       <td
                         className="px-4 py-3 align-top font-bold text-gray-900 bg-white border-r border-gray-200"
-                        style={estiloStickyIzq(ANCHO_COL_CATEGORIA + ANCHO_COL_ARTICULO, ANCHO_COL_TU_PRECIO)}
+                        style={estiloStickyIzq(offsetTuPrecio, ANCHO_COL_TU_PRECIO)}
                       >
                         {formatoMoneda(p.tu_precio)}
                       </td>
@@ -1050,6 +1071,12 @@ export default function Panel() {
                     <p className="font-medium text-gray-900">{p.nombre}</p>
                     <p className="text-xs text-gray-500">{p.categoria || 'Sin categoría'}</p>
                   </div>
+                  {permiteAjusteUnidad && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">Unidad de medida</span>
+                      <span>{unidadMedidaLabel(p.unidad_medida)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Tu precio</span>
                     <span className="font-bold text-gray-900">{formatoMoneda(p.tu_precio)}</span>

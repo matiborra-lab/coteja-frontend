@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { logoDePlataforma } from '../utils/plataformaLogos';
+import { api } from '../api/client';
+import { parsearCantidad, unidadMedidaLabel } from '../utils/unidadesMedida';
 
 // Miniatura de la plataforma de una tienda de competencia (FUDO, Cucina
 // Link, etc.). Si el nombre no matchea ninguna de las integradas (o el
@@ -103,6 +105,71 @@ export function Toast({ mensaje, onCerrar }) {
       </svg>
       <span>{mensaje}</span>
     </div>
+  );
+}
+
+// Editor inline de "Cantidad" de un vinculo (cuanta cantidad de la unidad
+// de medida del articulo representa ese producto) - solo tiene sentido
+// cuando la marca tiene permite_ajuste_unidad activo (ver Mi cuenta). Se
+// usa tanto en "Artículos vinculados" (Competidores.jsx) como en el
+// desplegable de un articulo (ProductosPropios.jsx), por eso vive aca en
+// vez de duplicarse en los dos.
+export function CantidadEditable({ vinculoId, cantidad, unidadMedida, onGuardado }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  const etiqueta = unidadMedidaLabel(unidadMedida);
+
+  if (!editando) {
+    return (
+      <button
+        type="button"
+        onClick={() => { setValor(String(cantidad ?? 1)); setError(''); setEditando(true); }}
+        className="text-gray-500 underline decoration-dotted hover:text-coteja-azul-800"
+        title="Editar cantidad"
+      >
+        Cantidad: {cantidad ?? 1} {etiqueta}
+      </button>
+    );
+  }
+
+  async function guardar(e) {
+    e.preventDefault();
+    const numero = parsearCantidad(valor);
+    if (numero === null) {
+      setError('Tiene que ser un número mayor a 0.');
+      return;
+    }
+    setGuardando(true);
+    try {
+      await api.patch('/api/vinculos/' + vinculoId, { cantidad: numero });
+      setEditando(false);
+      onGuardado();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={guardar} className="inline-flex items-center gap-1 flex-wrap">
+      <span className="text-xs text-gray-500">Cantidad:</span>
+      <input
+        autoFocus
+        type="text"
+        inputMode="decimal"
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        className="w-16 rounded border border-gray-300 px-1.5 py-0.5 text-xs"
+      />
+      <span className="text-xs text-gray-500">{etiqueta}</span>
+      <button type="submit" disabled={guardando} className="text-green-700 hover:underline text-xs">✓</button>
+      <button type="button" onClick={() => setEditando(false)} className="text-gray-400 hover:underline text-xs">×</button>
+      {error && <span className="text-xs text-red-600 basis-full">{error}</span>}
+    </form>
   );
 }
 

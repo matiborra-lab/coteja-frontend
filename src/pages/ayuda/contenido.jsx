@@ -719,6 +719,43 @@ export const SECCIONES = [
           },
         ],
       },
+      {
+        id: 'ajuste-unidad-medida',
+        titulo: 'Ajuste por unidad de medida',
+        resumen: 'Compará correctamente productos que se venden en distintas cantidades (ej: 5 langostinos vs. 3 langostinos).',
+        pasos: [
+          {
+            titulo: '¿Para qué sirve?',
+            texto: 'Permite comparar productos equivalentes que se venden en diferentes cantidades. Por ejemplo: 5 langostinos por $25.000 frente a 3 langostinos por $18.000 - a simple vista parece que tu precio es más caro, pero por unidad es más barato. COTEJA puede llevar ambos precios a una misma unidad para hacer una comparación correcta.',
+          },
+          {
+            titulo: 'Ejemplos',
+            texto:
+              'Langostinos fritos: 5 unidades por $25.000 = $5.000 por unidad · 3 unidades por $18.000 = $6.000 por unidad. ' +
+              'Horma de queso: una horma de 5,5 kg y otra de distinta cantidad se comparan usando Kilogramo como unidad de medida. ' +
+              'Bebidas: dos presentaciones distintas se comparan usando Litro. ' +
+              'Raciones: productos vendidos en distintas cantidades de raciones se comparan usando Ración.',
+          },
+          {
+            titulo: 'Cómo se activa',
+            texto:
+              'Desde "Mi cuenta", en los datos de tu marca vas a encontrar la opción "Permitir ajuste por unidad de medida". Al activarla te pedimos confirmación, porque es recomendable revisar manualmente la unidad de medida de cada Artículo a Cotejar y la cantidad de sus productos vinculados para que las comparaciones sean correctas. Los artículos existentes arrancan configurados como Unidad y los productos ya vinculados con Cantidad 1 - nada cambia hasta que ajustes esos valores a mano.',
+          },
+          {
+            titulo: 'Cómo configurar los Artículos',
+            texto: 'Desde "Artículos", cada Artículo a Cotejar define su Unidad de medida (Unidad, Ración, Kilogramo o Litro). Por ejemplo: Langostinos fritos → Unidad, Horma de queso → Kilogramo.',
+          },
+          {
+            titulo: 'Cómo vincular productos',
+            texto:
+              'Importante: la unidad de medida NO se elige al vincular un producto - ya está definida en el Artículo a Cotejar. Al vincular, solo indicás la cantidad de esa unidad que contiene ese producto. Ejemplo: si "Langostinos fritos" está en Unidad, al vincular una porción de 5 langostinos ponés Cantidad: 5. Otro competidor puede vincularse al mismo artículo con Cantidad: 3 - los dos quedan automáticamente comparados por la misma unidad.',
+          },
+          {
+            titulo: 'Qué cambia en el Panel',
+            texto: 'El Panel usa el precio ajustado (precio publicado dividido por la cantidad) para calcular tu precio, el de cada competencia, el promedio y la diferencia frente al mercado. El precio real obtenido de cada tienda no se modifica nunca - se sigue usando tal cual para el historial y las alertas de cambios de precio.',
+          },
+        ],
+      },
     ],
   },
 ];

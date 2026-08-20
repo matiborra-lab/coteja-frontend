@@ -16,6 +16,15 @@ const CONDICIONES = [
   { value: 'VARIACION_PORCENTAJE', label: 'El precio varíe más de un porcentaje' },
 ];
 
+// Una alerta de posicion vs. mercado chequea UN solo lado (no una franja) -
+// el alcance/filtro tambien es uno solo por alerta, asi que si el cliente
+// necesita vigilar categorias distintas en direcciones distintas (ej:
+// bebidas por debajo, hamburguesas por encima), crea alertas separadas.
+const CONDICIONES_POSICION_VS_MERCADO = [
+  { value: 'POR_ENCIMA', label: 'Por encima del promedio de competencia' },
+  { value: 'POR_DEBAJO', label: 'Por debajo del promedio de competencia' },
+];
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NOMBRES_DIAS_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const NOMBRES_DIAS_CORTO = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
@@ -32,13 +41,7 @@ function tipoLabel(valor) {
   return TIPOS_ALERTA.find((t) => t.value === valor)?.label || valor;
 }
 function condicionLabel(valor) {
-  return CONDICIONES.find((c) => c.value === valor)?.label || valor;
-}
-function bandaLabel(alerta) {
-  const partes = [];
-  if (alerta.banda_piso_porcentaje != null) partes.push('Piso ' + alerta.banda_piso_porcentaje + '%');
-  if (alerta.banda_techo_porcentaje != null) partes.push('Techo ' + alerta.banda_techo_porcentaje + '%');
-  return partes.join(' / ') || '-';
+  return [...CONDICIONES, ...CONDICIONES_POSICION_VS_MERCADO].find((c) => c.value === valor)?.label || valor;
 }
 function formatoFecha(fecha) {
   if (!fecha) return '-';
@@ -352,35 +355,6 @@ function SelectorProductos({ productosPropios, value, onChange }) {
   );
 }
 
-// Piso y techo son independientes - se puede cargar uno solo (alerta de un
-// solo lado) o los dos juntos (una franja completa). Al menos uno es
-// obligatorio, lo valida el backend.
-function SelectorBandaPorcentaje({ piso, techo, onChange }) {
-  return (
-    <div className="space-y-2">
-      <label className="flex flex-wrap items-center gap-2 text-sm">
-        <span>Avisarme si mi precio está por debajo de</span>
-        <input
-          type="number" step="0.1" min="0" value={piso}
-          onChange={(e) => onChange({ piso: e.target.value, techo })}
-          placeholder="%" className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
-        />
-        <span>% del promedio de competencia</span>
-      </label>
-      <label className="flex flex-wrap items-center gap-2 text-sm">
-        <span>Avisarme si mi precio está por encima de</span>
-        <input
-          type="number" step="0.1" min="0" value={techo}
-          onChange={(e) => onChange({ piso, techo: e.target.value })}
-          placeholder="%" className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
-        />
-        <span>% del promedio de competencia</span>
-      </label>
-      <Leyenda>Cargá al menos uno de los dos - podés usar los dos juntos para definir una franja completa.</Leyenda>
-    </div>
-  );
-}
-
 // Compartido entre CAMBIOS_COMPETENCIA automática y POSICION_VS_MERCADO -
 // las dos unicas alertas puntuales/accionables donde el push tiene sentido.
 function NotificacionPushCheckbox({ checked, suscribiendo, error, onChange }) {
@@ -440,8 +414,6 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
   const [condicion, setCondicion] = useState(alerta?.condicion || 'CUALQUIER_CAMBIO');
   const [umbral, setUmbral] = useState(alerta?.condicion_umbral_porcentaje ?? '');
   const [modalidadEnvio, setModalidadEnvio] = useState(alerta?.modalidad_envio || 'AUTOMATICO');
-  const [bandaPiso, setBandaPiso] = useState(alerta?.banda_piso_porcentaje ?? '');
-  const [bandaTecho, setBandaTecho] = useState(alerta?.banda_techo_porcentaje ?? '');
   const [notificacionPush, setNotificacionPush] = useState(alerta?.notificacion_push || false);
   const [pushError, setPushError] = useState('');
   const [suscribiendoPush, setSuscribiendoPush] = useState(false);
@@ -488,6 +460,19 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
     setBloquesPorMarca((prev) => ({ ...prev, [marcaId]: { ...prev[marcaId], ...cambios } }));
   }
 
+  // "condicion" es la misma columna para CAMBIOS_COMPETENCIA y POSICION_VS_MERCADO
+  // (valores distintos segun el tipo) - al cambiar de tipo, si el valor
+  // actual no es valido para el tipo nuevo, se resetea a un default sensato
+  // en vez de dejar un radio sin marcar.
+  function onTipoChange(nuevoTipo) {
+    setTipo(nuevoTipo);
+    if (nuevoTipo === 'POSICION_VS_MERCADO' && !CONDICIONES_POSICION_VS_MERCADO.some((c) => c.value === condicion)) {
+      setCondicion('POR_ENCIMA');
+    } else if (nuevoTipo === 'CAMBIOS_COMPETENCIA' && !CONDICIONES.some((c) => c.value === condicion)) {
+      setCondicion('CUALQUIER_CAMBIO');
+    }
+  }
+
   const esProgramada = tipo === 'POSICIONAMIENTO' || (tipo === 'CAMBIOS_COMPETENCIA' && modalidadEnvio === 'PROGRAMADO');
   const pushDisponibleAqui = pushDisponibleParaEsteTipo(tipo, modalidadEnvio);
   const quedariaSinCanal = emailsCc.length === 0 && !(pushDisponibleAqui && notificacionPush);
@@ -520,16 +505,16 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
       const body = {
         tipo,
         observacion: observacion.trim() || null,
-        condicion: tipo === 'CAMBIOS_COMPETENCIA' ? condicion : null,
-        condicion_umbral_porcentaje: tipo === 'CAMBIOS_COMPETENCIA' && condicion === 'VARIACION_PORCENTAJE' ? Number(umbral) : null,
+        condicion: tipo === 'CAMBIOS_COMPETENCIA' || tipo === 'POSICION_VS_MERCADO' ? condicion : null,
+        condicion_umbral_porcentaje:
+          (tipo === 'CAMBIOS_COMPETENCIA' && condicion === 'VARIACION_PORCENTAJE') || tipo === 'POSICION_VS_MERCADO'
+            ? Number(umbral) : null,
         modalidad_envio: tipo === 'CAMBIOS_COMPETENCIA' ? modalidadEnvio : null,
         notificacion_push: pushDisponibleAqui ? notificacionPush : false,
         frecuencia_programada: esProgramada ? frecuencia : null,
         hora_envio: esProgramada ? horaEnvio : null,
         dias_semana: esProgramada && frecuencia === 'SEMANAL' ? diasSemana : null,
         dias_mes: esProgramada && frecuencia === 'MENSUAL' ? diasMes : null,
-        banda_piso_porcentaje: tipo === 'POSICION_VS_MERCADO' && bandaPiso !== '' ? Number(bandaPiso) : null,
-        banda_techo_porcentaje: tipo === 'POSICION_VS_MERCADO' && bandaTecho !== '' ? Number(bandaTecho) : null,
         email_principal: emailPrincipalModo === 'OTRO' ? emailPrincipalValor.trim() : null,
         email_principal_desactivado: emailPrincipalModo === 'NINGUNO',
         marcas: marcasSeleccionadas.map((id) => {
@@ -575,7 +560,7 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de alerta</label>
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+        <select value={tipo} onChange={(e) => onTipoChange(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2">
           {TIPOS_ALERTA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>
@@ -630,15 +615,27 @@ function FormAlerta({ alerta, marcaActualId, usuarioEmail, onGuardado, onElimina
             un reporte periódico: se dispara sola cuando detecta un producto fuera de rango. Igual que con cambios de
             precio de la competencia, espera un poco (hasta 60 minutos) antes de avisarte, dando tiempo a que la
             competencia termine de actualizar su carta - si para entonces el precio volvió a estar dentro del rango, no
-            te llega nada.
+            te llega nada. Una alerta chequea un solo lado - si necesitás vigilar otras categorías en la dirección
+            contraria, creá otra alerta con su propio filtro.
           </Leyenda>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Rango de precio aceptable</label>
-            <SelectorBandaPorcentaje
-              piso={bandaPiso}
-              techo={bandaTecho}
-              onChange={(v) => { setBandaPiso(v.piso); setBandaTecho(v.techo); }}
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Avisarme cuando mi precio esté</label>
+            <div className="space-y-1.5">
+              {CONDICIONES_POSICION_VS_MERCADO.map((c) => (
+                <label key={c.value} className="flex items-center gap-2 text-sm">
+                  <input type="radio" checked={condicion === c.value} onChange={() => setCondicion(c.value)} />
+                  {c.label}
+                  {condicion === c.value && (
+                    <input
+                      type="number" step="0.1" min="0" required value={umbral}
+                      onChange={(e) => setUmbral(e.target.value)}
+                      placeholder="%"
+                      className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm ml-1"
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
           </div>
           <NotificacionPushCheckbox
             checked={notificacionPush}
@@ -987,7 +984,7 @@ export default function Alertas() {
                     <td className="p-3 align-top text-gray-600">
                       {a.tipo === 'CAMBIOS_COMPETENCIA'
                         ? condicionLabel(a.condicion) + (a.condicion === 'VARIACION_PORCENTAJE' ? ' ≥' + a.condicion_umbral_porcentaje + '%' : '')
-                        : a.tipo === 'POSICION_VS_MERCADO' ? bandaLabel(a) : '-'}
+                        : a.tipo === 'POSICION_VS_MERCADO' ? condicionLabel(a.condicion) + ' ' + a.condicion_umbral_porcentaje + '%' : '-'}
                     </td>
                     <td className="p-3 align-top text-gray-600 whitespace-nowrap">
                       {a.tipo === 'POSICION_VS_MERCADO' || (a.tipo === 'CAMBIOS_COMPETENCIA' && a.modalidad_envio === 'AUTOMATICO')
@@ -1044,7 +1041,7 @@ export default function Alertas() {
                   <span className="text-gray-700">
                     {a.tipo === 'CAMBIOS_COMPETENCIA'
                       ? condicionLabel(a.condicion) + (a.condicion === 'VARIACION_PORCENTAJE' ? ' ≥' + a.condicion_umbral_porcentaje + '%' : '')
-                      : a.tipo === 'POSICION_VS_MERCADO' ? bandaLabel(a) : '-'}
+                      : a.tipo === 'POSICION_VS_MERCADO' ? condicionLabel(a.condicion) + ' ' + a.condicion_umbral_porcentaje + '%' : '-'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
